@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { toast } from "sonner";
 import { apiUrl } from "../constants";
 
 const AuthContext = createContext();
@@ -16,7 +17,6 @@ export const AuthProvider = ({ children }) => {
 
   const normalizeUser = (data) => data ? {
     ...data,
-    token: data.token,
   } : null;
 
   const normalizeAddress = (address = {}) => ({
@@ -29,10 +29,8 @@ export const AuthProvider = ({ children }) => {
     pin: address.pin || address.zipCode || "",
   });
 
-  const loadProfile = async (token) => {
-    const response = await fetch(apiUrl("/api/auth/me"), {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+  const loadProfile = async () => {
+    const response = await fetch(apiUrl("/api/auth/me"));
 
     if (!response.ok) {
       throw new Error("Failed to load user profile");
@@ -44,23 +42,10 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const bootstrapAuth = async () => {
       try {
-        const storedUser = localStorage.getItem("ruvia_user");
-        if (!storedUser) {
-          setUser(null);
-          setAddresses([]);
-          return;
-        }
-
-        const parsedUser = normalizeUser(JSON.parse(storedUser));
-        if (!parsedUser?.token) {
-          setUser(parsedUser);
-          setAddresses([]);
-          return;
-        }
-
-        const profile = await loadProfile(parsedUser.token);
+        // Try to fetch user profile from backend (cookie-based auth)
+        const profile = await loadProfile();
+        
         const nextUser = {
-          ...parsedUser,
           _id: profile._id,
           name: profile.name,
           email: profile.email,
@@ -70,10 +55,8 @@ export const AuthProvider = ({ children }) => {
 
         setUser(nextUser);
         setAddresses((profile.addresses || []).map(normalizeAddress));
-        localStorage.setItem("ruvia_user", JSON.stringify(nextUser));
       } catch (error) {
         console.error("Failed to bootstrap auth", error);
-        localStorage.removeItem("ruvia_user");
         setUser(null);
         setAddresses([]);
       } finally {
@@ -126,12 +109,11 @@ export const AuthProvider = ({ children }) => {
       const data = await response.json();
       if (response.ok) {
         setUser(normalizeUser(data));
-        localStorage.setItem("ruvia_user", JSON.stringify(normalizeUser(data)));
-        const profile = await loadProfile(data.token);
+        const profile = await loadProfile();
         setAddresses((profile.addresses || []).map(normalizeAddress));
         return true;
       } else {
-        alert(data.message || "Login failed");
+        toast.error(data.message || "Login failed");
         return false;
       }
     } catch (error) {
@@ -150,11 +132,11 @@ export const AuthProvider = ({ children }) => {
       const data = await response.json();
       if (response.ok) {
         setUser(normalizeUser(data));
-        localStorage.setItem("ruvia_user", JSON.stringify(normalizeUser(data)));
-        setAddresses([]);
+        const profile = await loadProfile();
+        setAddresses((profile.addresses || []).map(normalizeAddress));
         return true;
       } else {
-        alert(data.message || "Signup failed");
+        toast.error(data.message || "Signup failed");
         return false;
       }
     } catch (error) {
@@ -163,9 +145,13 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await fetch(apiUrl("/api/auth/logout"), { method: "POST" });
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
     setUser(null);
-    localStorage.removeItem("ruvia_user");
     setAddresses([]);
   };
 
@@ -174,7 +160,6 @@ export const AuthProvider = ({ children }) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${user.token}`,
       },
       body: JSON.stringify({ address: addr }),
     });
@@ -197,9 +182,6 @@ export const AuthProvider = ({ children }) => {
   const deleteAddress = async (id) => {
     const response = await fetch(apiUrl(`/api/auth/address/${id}`), {
       method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${user.token}`,
-      },
     });
 
     const data = await response.json();
@@ -213,13 +195,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateUser = async (updatedFields) => {
-    if (!user?.token) return false;
-
     const response = await fetch(apiUrl("/api/auth/profile"), {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${user.token}`,
       },
       body: JSON.stringify({
         name: updatedFields.name,
@@ -234,9 +213,8 @@ export const AuthProvider = ({ children }) => {
       throw new Error(data.message || "Failed to update profile");
     }
 
-    const nextUser = { ...user, ...data, token: user.token };
+    const nextUser = { ...user, ...data };
     setUser(nextUser);
-    localStorage.setItem("ruvia_user", JSON.stringify(nextUser));
     if (data.addresses) {
       setAddresses((data.addresses || []).map(normalizeAddress));
     }

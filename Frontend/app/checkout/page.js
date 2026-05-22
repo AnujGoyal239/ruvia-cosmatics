@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import { apiUrl } from "../../constants";
@@ -86,7 +87,7 @@ export default function CheckoutPage() {
     if (paymentMethod !== "cod" && !validatePayment()) return;
 
     if (!user || !user.token) {
-      alert('You must be logged in to place an order');
+      toast.error('You must be logged in to place an order');
       return;
     }
 
@@ -195,7 +196,7 @@ export default function CheckoutPage() {
               clearCart();
             } catch (err) {
               console.error('Payment verification failed', err);
-              alert(err.message || 'Payment verification failed');
+              toast.error(err.message || 'Payment verification failed');
             } finally {
               setIsProcessing(false);
             }
@@ -214,7 +215,7 @@ export default function CheckoutPage() {
 
     } catch (err) {
       console.error('Checkout error:', err);
-      alert(err.message || 'Checkout failed');
+      toast.error(err.message || 'Checkout failed');
       setIsProcessing(false);
     }
   };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 import { apiUrl } from "../../../constants";
 import { Button } from "../../../components/ui/Button";
 import { Search, Eye } from "lucide-react";
@@ -14,14 +15,7 @@ export default function AdminReturnsPage() {
 
   const fetchReturns = useCallback(async () => {
     try {
-      const token = localStorage.getItem("ruvia_admin");
-      if (!token) return;
-
-      const response = await fetch(apiUrl("/api/returns"), {
-        headers: {
-          'Authorization': `Bearer ${JSON.parse(token).token}`,
-        },
-      });
+      const response = await fetch(apiUrl("/api/returns"));
 
       if (response.ok) {
         const data = await response.json();
@@ -39,14 +33,10 @@ export default function AdminReturnsPage() {
   }, [fetchReturns]);
 
   const handleStatusUpdate = async (returnId, newStatus) => {
-    const token = localStorage.getItem("ruvia_admin");
-    if (!token) return;
-
     try {
       const response = await fetch(apiUrl(`/api/returns/${returnId}/status`), {
         method: "PUT",
         headers: {
-          'Authorization': `Bearer ${JSON.parse(token).token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ status: newStatus }),
@@ -55,12 +45,13 @@ export default function AdminReturnsPage() {
       if (response.ok) {
         fetchReturns();
         setShowModal(false);
+        toast.success("Return status updated successfully");
       } else {
-        alert("Failed to update return status");
+        toast.error("Failed to update return status");
       }
     } catch (error) {
       console.error("Failed to update return status:", error);
-      alert("Failed to update return status");
+      toast.error("Failed to update return status");
     }
   };
 

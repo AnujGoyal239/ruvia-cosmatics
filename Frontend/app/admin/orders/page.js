@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 import { apiUrl } from "../../../constants";
 import { Button } from "../../../components/ui/Button";
 import { Search, Eye } from "lucide-react";
@@ -14,14 +15,7 @@ export default function AdminOrdersPage() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const token = localStorage.getItem("ruvia_admin");
-      if (!token) return;
-
-      const response = await fetch(apiUrl("/api/orders/myorders"), {
-        headers: {
-          'Authorization': `Bearer ${JSON.parse(token).token}`,
-        },
-      });
+      const response = await fetch(apiUrl("/api/orders/myorders"));
 
       if (response.ok) {
         const data = await response.json();
@@ -39,14 +33,10 @@ export default function AdminOrdersPage() {
   }, [fetchOrders]);
 
   const handleStatusUpdate = async (orderId, newStatus) => {
-    const token = localStorage.getItem("ruvia_admin");
-    if (!token) return;
-
     try {
       const response = await fetch(apiUrl(`/api/orders/${orderId}/status`), {
         method: "PUT",
         headers: {
-          'Authorization': `Bearer ${JSON.parse(token).token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ status: newStatus }),
@@ -55,12 +45,13 @@ export default function AdminOrdersPage() {
       if (response.ok) {
         fetchOrders();
         setShowModal(false);
+        toast.success("Order status updated successfully");
       } else {
-        alert("Failed to update order status");
+        toast.error("Failed to update order status");
       }
     } catch (error) {
       console.error("Failed to update order status:", error);
-      alert("Failed to update order status");
+      toast.error("Failed to update order status");
     }
   };
 
