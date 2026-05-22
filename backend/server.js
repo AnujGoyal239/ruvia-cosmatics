@@ -4,9 +4,15 @@ const dotenv = require('dotenv');
 // Load environment variables as early as possible
 dotenv.config();
 
+// Validate required environment variables
+const { validateEnvVars } = require('./config/envValidation');
+validateEnvVars();
+
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
+const { sanitizeRequest } = require('./middleware/sanitizeMiddleware');
 
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
@@ -25,6 +31,12 @@ const app = express();
 
 // Security middlewares
 app.use(helmet());
+
+// Parse cookies
+app.use(cookieParser());
+
+// Sanitize request body, query, and params to prevent NoSQL injection
+app.use(sanitizeRequest);
 
 // CORS whitelist
 const whitelist = (process.env.CORS_ORIGINS || 'http://localhost:3000').split(',').map(s => s.trim());

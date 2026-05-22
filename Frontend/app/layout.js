@@ -1,9 +1,11 @@
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import ClientLayout from "../components/layout/ClientLayout";
+import ErrorBoundary from "../components/ErrorBoundary";
 import { AuthProvider } from "../context/AuthContext";
 import { CartProvider } from "../context/CartContext";
 import { WishlistProvider } from "../context/WishlistContext";
+import { Toaster } from "sonner";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -27,13 +29,16 @@ export default function RootLayout({ children }) {
         className={`${inter.variable} ${playfair.variable} antialiased font-sans bg-brand-beige text-brand-dark flex flex-col min-h-screen relative`}
         suppressHydrationWarning
       >
-        <AuthProvider>
-          <CartProvider>
-            <WishlistProvider>
-              <ClientLayout>{children}</ClientLayout>
-            </WishlistProvider>
-          </CartProvider>
-        </AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            <CartProvider>
+              <WishlistProvider>
+                <ClientLayout>{children}</ClientLayout>
+              </WishlistProvider>
+            </CartProvider>
+          </AuthProvider>
+        </ErrorBoundary>
+        <Toaster position="top-right" richColors closeButton />
       </body>
     </html>
   );

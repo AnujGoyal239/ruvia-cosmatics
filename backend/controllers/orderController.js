@@ -1,4 +1,5 @@
 const Order = require('../models/orderModel');
+const Product = require('../models/productModel');
 
 // @desc    Create new order
 // @route   POST /api/orders
@@ -9,10 +10,6 @@ const addOrderItems = async (req, res) => {
       items,
       shippingAddress,
       paymentMethod,
-      itemsPrice,
-      gst,
-      shippingFee,
-      total,
     } = req.body;
 
     if (!items || items.length === 0) {
@@ -32,22 +29,64 @@ const addOrderItems = async (req, res) => {
       return res.status(400).json({ message: 'Invalid payment method' });
     }
 
+    // ✅ Verify items and calculate correct prices
+    let itemsPrice = 0;
+    const verifiedItems = [];
+    
+    for (const item of items) {
+      const product = await Product.findOne({ id: String(item.id) });
+      if (!product) {
+        return res.status(400).json({ message: `Product ${item.id} not found` });
+      }
+
+      // Check stock
+      if (product.countInStock < item.qty) {
+        return res.status(400).json({ 
+          message: `Insufficient stock for ${product.name}. Available: ${product.countInStock}` 
+        });
+      }
+
+      const itemTotal = product.price * item.qty;
+      itemsPrice += itemTotal;
+
+      verifiedItems.push({
+        product: String(product.id),
+        name: product.name,
+        price: product.price,  // ✅ Use database price
+        qty: item.qty,
+        img: product.image
+      });
+    }
+
+    // ✅ Calculate totals on server
+    const gst = Math.round(itemsPrice * 0.18); // 18% GST
+    const shippingFee = itemsPrice > 500 ? 0 : 50; // Free shipping over ₹500
+    const total = itemsPrice + gst + shippingFee;
+
     // For COD, order is created but not marked as paid
     const isPaid = paymentMethod === 'COD' ? false : false;
 
     const order = new Order({
-      items: items.map(x => ({ ...x, product: String(x.id), _id: undefined })),
+      items: verifiedItems,
       user: req.user._id,
       shippingAddress,
       paymentMethod,
-      subtotal: itemsPrice,
-      gst,
-      shippingFee,
-      total,
+      subtotal: itemsPrice,  // ✅ Server-calculated
+      gst,  // ✅ Server-calculated
+      shippingFee,  // ✅ Server-calculated
+      total,  // ✅ Server-calculated
       isPaid,
     });
 
     const createdOrder = await order.save();
+
+    // ✅ Update stock
+    for (const item of verifiedItems) {
+      await Product.findByIdAndUpdate(
+        item.product,
+        { $inc: { countInStock: -item.qty } }
+      );
+    }
 
     res.status(201).json(createdOrder);
   } catch (error) {
@@ -66,11 +105,16 @@ const getOrderById = async (req, res) => {
       'name email'
     );
 
-    if (order) {
-      res.json(order);
-    } else {
-      res.status(404).json({ message: 'Order not found' });
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
     }
+
+    // ✅ Check if user owns the order or is admin
+    if (order.user._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized to access this order' });
+    }
+
+    res.json(order);
   } catch (error) {
     console.error('Get order by ID error:', error);
     res.status(500).json({ message: 'Server error while fetching order' });
@@ -84,23 +128,28 @@ const updateOrderToPaid = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
 
-    if (order) {
-      order.isPaid = true;
-      order.paidAt = Date.now();
-      // Payment result comes from Razorpay webhook/frontend confirmation
-      order.paymentResult = {
-        id: req.body.id,
-        status: req.body.status,
-        update_time: req.body.update_time,
-        email_address: req.body.email_address,
-      };
-
-      const updatedOrder = await order.save();
-
-      res.json(updatedOrder);
-    } else {
-      res.status(404).json({ message: 'Order not found' });
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
     }
+
+    // ✅ Check if user owns the order or is admin
+    if (order.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized to update this order' });
+    }
+
+    order.isPaid = true;
+    order.paidAt = Date.now();
+    // Payment result comes from Razorpay webhook/frontend confirmation
+    order.paymentResult = {
+      id: req.body.id,
+      status: req.body.status,
+      update_time: req.body.update_time,
+      email_address: req.body.email_address,
+    };
+
+    const updatedOrder = await order.save();
+
+    res.json(updatedOrder);
   } catch (error) {
     console.error('Update order to paid error:', error);
     res.status(500).json({ message: 'Server error while updating order payment status' });

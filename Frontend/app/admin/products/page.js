@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 import { apiUrl } from "../../../constants";
 import { Button } from "../../../components/ui/Button";
 import { Plus, Edit, Trash2, Search } from "lucide-react";
@@ -27,14 +28,7 @@ export default function AdminProductsPage() {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const token = localStorage.getItem("ruvia_admin");
-      if (!token) return;
-
-      const response = await fetch(apiUrl("/api/products"), {
-        headers: {
-          'Authorization': `Bearer ${JSON.parse(token).token}`,
-        },
-      });
+      const response = await fetch(apiUrl("/api/products"));
 
       if (response.ok) {
         const data = await response.json();
@@ -53,8 +47,6 @@ export default function AdminProductsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const token = localStorage.getItem("ruvia_admin");
-    if (!token) return;
 
     const formDataObj = new FormData();
     Object.keys(formData).forEach(key => {
@@ -70,9 +62,6 @@ export default function AdminProductsPage() {
     try {
       const response = await fetch(url, {
         method,
-        headers: {
-          'Authorization': `Bearer ${JSON.parse(token).token}`,
-        },
         body: formDataObj,
       });
 
@@ -85,37 +74,33 @@ export default function AdminProductsPage() {
           concern: "", ingredients: "", usage: "", benefits: "",
         });
         fetchProducts();
+        toast.success("Product saved successfully");
       } else {
-        alert("Failed to save product");
+        toast.error("Failed to save product");
       }
     } catch (error) {
       console.error("Failed to save product:", error);
-      alert("Failed to save product");
+      toast.error("Failed to save product");
     }
   };
 
   const handleDelete = async (productId) => {
     if (!confirm("Are you sure you want to delete this product?")) return;
 
-    const token = localStorage.getItem("ruvia_admin");
-    if (!token) return;
-
     try {
       const response = await fetch(apiUrl(`/api/products/${productId}`), {
         method: "DELETE",
-        headers: {
-          'Authorization': `Bearer ${JSON.parse(token).token}`,
-        },
       });
 
       if (response.ok) {
         fetchProducts();
+        toast.success("Product deleted successfully");
       } else {
-        alert("Failed to delete product");
+        toast.error("Failed to delete product");
       }
     } catch (error) {
       console.error("Failed to delete product:", error);
-      alert("Failed to delete product");
+      toast.error("Failed to delete product");
     }
   };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 import { apiUrl } from "../../../constants";
 import { Button } from "../../../components/ui/Button";
 import { Search, Trash2, Star } from "lucide-react";
@@ -12,14 +13,7 @@ export default function AdminReviewsPage() {
 
   const fetchReviews = useCallback(async () => {
     try {
-      const token = localStorage.getItem("ruvia_admin");
-      if (!token) return;
-
-      const response = await fetch(apiUrl("/api/reviews/myreviews"), {
-        headers: {
-          'Authorization': `Bearer ${JSON.parse(token).token}`,
-        },
-      });
+      const response = await fetch(apiUrl("/api/reviews/myreviews"));
 
       if (response.ok) {
         const data = await response.json();
@@ -39,25 +33,20 @@ export default function AdminReviewsPage() {
   const handleDelete = async (reviewId) => {
     if (!confirm("Are you sure you want to delete this review?")) return;
 
-    const token = localStorage.getItem("ruvia_admin");
-    if (!token) return;
-
     try {
       const response = await fetch(apiUrl(`/api/reviews/${reviewId}`), {
         method: "DELETE",
-        headers: {
-          'Authorization': `Bearer ${JSON.parse(token).token}`,
-        },
       });
 
       if (response.ok) {
         fetchReviews();
+        toast.success("Review deleted successfully");
       } else {
-        alert("Failed to delete review");
+        toast.error("Failed to delete review");
       }
     } catch (error) {
       console.error("Failed to delete review:", error);
-      alert("Failed to delete review");
+      toast.error("Failed to delete review");
     }
   };
 

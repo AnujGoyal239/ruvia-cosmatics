@@ -4,6 +4,21 @@ require('dotenv').config();
 
 const createAdmin = async () => {
   try {
+    // Check for admin password in environment variable
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    if (!adminPassword) {
+      console.error('ERROR: ADMIN_PASSWORD environment variable is not set');
+      console.error('Please set ADMIN_PASSWORD before running this script');
+      console.error('Example: ADMIN_PASSWORD=your_secure_password node scripts/createAdmin.js');
+      process.exit(1);
+    }
+
+    // Validate password strength
+    if (adminPassword.length < 8) {
+      console.error('ERROR: Admin password must be at least 8 characters');
+      process.exit(1);
+    }
+
     // Connect to MongoDB
     await mongoose.connect(process.env.MONGO_URI);
     console.log('MongoDB Connected');
@@ -19,14 +34,14 @@ const createAdmin = async () => {
     const admin = await User.create({
       name: 'Admin',
       email: 'admin@ruvia.com',
-      password: 'admin123',
+      password: adminPassword,
       role: 'admin'
     });
 
     console.log('Admin user created successfully:');
     console.log('Email: admin@ruvia.com');
-    console.log('Password: admin123');
     console.log('Role: admin');
+    console.log('Password: [HIDDEN - Set via ADMIN_PASSWORD environment variable]');
     
     process.exit(0);
   } catch (error) {

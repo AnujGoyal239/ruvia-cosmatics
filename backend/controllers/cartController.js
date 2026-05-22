@@ -1,4 +1,5 @@
 const Cart = require('../models/cartModel');
+const Product = require('../models/productModel');
 
 // Save or replace the user's cart
 const saveCart = async (req, res) => {
@@ -13,21 +14,31 @@ const saveCart = async (req, res) => {
       return res.status(400).json({ message: 'Invalid items format' });
     }
 
+    // Verify each item exists and get correct price from database
+    const verifiedItems = [];
+    for (const item of items) {
+      const product = await Product.findOne({ id: String(item.product || item.id) });
+      if (!product) {
+        return res.status(400).json({ message: `Product ${item.id} not found` });
+      }
+      
+      verifiedItems.push({
+        productId: String(product.id),
+        id: String(product.id),
+        name: product.name,
+        price: product.price,  // ✅ Use price from database
+        qty: item.quantity || item.qty || 1,
+        img: product.image
+      });
+    }
+
     let cart = await Cart.findOne({ user: req.user._id });
-    const mapped = items.map(i => ({
-      productId: String(i.product || i.id),
-      id: String(i.id),
-      name: i.name,
-      price: i.price,
-      qty: i.quantity || i.qty || 1,
-      img: i.img || i.image
-    }));
 
     if (cart) {
-      cart.items = mapped;
+      cart.items = verifiedItems;
       await cart.save();
     } else {
-      cart = await Cart.create({ user: req.user._id, items: mapped });
+      cart = await Cart.create({ user: req.user._id, items: verifiedItems });
     }
 
     res.json(cart);
