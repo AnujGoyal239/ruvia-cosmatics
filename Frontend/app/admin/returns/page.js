@@ -15,7 +15,7 @@ export default function AdminReturnsPage() {
 
   const fetchReturns = useCallback(async () => {
     try {
-      const response = await fetch(apiUrl("/api/returns"));
+      const response = await fetch(apiUrl("/api/returns"), { credentials: "include" });
 
       if (response.ok) {
         const data = await response.json();
@@ -39,6 +39,7 @@ export default function AdminReturnsPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: "include",
         body: JSON.stringify({ status: newStatus }),
       });
 

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { createReview, getProductReviews, getMyReviews, deleteReview } = require('../controllers/reviewController');
+const { createReview, getProductReviews, getMyReviews, deleteReview, getAllReviews } = require('../controllers/reviewController');
 const { protect, admin } = require('../middleware/authMiddleware');
 const { check } = require('express-validator');
 const { runValidation } = require('../middleware/validateMiddleware');
@@ -19,6 +19,7 @@ router.route('/').post(
 
 router.route('/product/:productId').get(getProductReviews);
 router.route('/myreviews').get(protect, getMyReviews);
+router.route('/all').get(protect, admin, getAllReviews);
 router.route('/:id').delete(protect, deleteReview);
 
 module.exports = router;

@@ -115,14 +115,12 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const loadOrders = async () => {
-      if (!user?.token) return;
+      if (!user) return;
 
       try {
         setOrdersLoading(true);
         const response = await fetch(apiUrl("/api/orders/myorders"), {
-          headers: {
-            Authorization: `Bearer ${user.token}`,
-          },
+          credentials: "include",
         });
         const data = await response.json();
         if (response.ok && Array.isArray(data)) {
@@ -136,7 +134,7 @@ export default function ProfilePage() {
     };
 
     loadOrders();
-  }, [user?.token]);
+  }, [user]);
 
   if (loading || !user) return null;
 

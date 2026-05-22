@@ -30,7 +30,13 @@ export const AuthProvider = ({ children }) => {
   });
 
   const loadProfile = async () => {
-    const response = await fetch(apiUrl("/api/auth/me"));
+    // Cookie-based auth (httpOnly cookie set by backend on login/register)
+    const response = await fetch(apiUrl("/api/auth/me"), {
+      credentials: "include",
+    });
+
+    // Not logged in is not an "exceptional" case during bootstrap
+    if (response.status === 401) return null;
 
     if (!response.ok) {
       throw new Error("Failed to load user profile");
@@ -42,8 +48,12 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const bootstrapAuth = async () => {
       try {
-        // Try to fetch user profile from backend (cookie-based auth)
         const profile = await loadProfile();
+        if (!profile) {
+          setUser(null);
+          setAddresses([]);
+          return;
+        }
         
         const nextUser = {
           _id: profile._id,
@@ -68,7 +78,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const saveAddresses = async (newAddresses) => {
-    if (!user?.token) {
+    if (!user) {
       setAddresses(newAddresses);
       return;
     }
@@ -77,8 +87,8 @@ export const AuthProvider = ({ children }) => {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${user.token}`,
       },
+      credentials: "include",
       body: JSON.stringify({
         name: user.name,
         email: user.email,
@@ -95,7 +105,6 @@ export const AuthProvider = ({ children }) => {
     const nextAddresses = (data.addresses || []).map(normalizeAddress);
     setAddresses(nextAddresses);
     setUser((current) => current ? { ...current, ...data } : current);
-    localStorage.setItem("ruvia_user", JSON.stringify({ ...user, ...data }));
     return nextAddresses;
   };
 
@@ -104,13 +113,26 @@ export const AuthProvider = ({ children }) => {
       const response = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
       });
       const data = await response.json();
       if (response.ok) {
-        setUser(normalizeUser(data));
+        // Cookie is now set by backend; fetch the canonical profile
         const profile = await loadProfile();
-        setAddresses((profile.addresses || []).map(normalizeAddress));
+        if (profile) {
+          setUser({
+            _id: profile._id,
+            name: profile.name,
+            email: profile.email,
+            role: profile.role,
+            phone: profile.phone,
+          });
+          setAddresses((profile.addresses || []).map(normalizeAddress));
+        } else {
+          // Fallback (shouldn't happen if cookie was set)
+          setUser(normalizeUser(data));
+        }
         return true;
       } else {
         toast.error(data.message || "Login failed");
@@ -127,13 +149,24 @@ export const AuthProvider = ({ children }) => {
       const response = await fetch(apiUrl("/api/auth/register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password })
+        credentials: "include",
+        body: JSON.stringify({ name, email, password }),
       });
       const data = await response.json();
       if (response.ok) {
-        setUser(normalizeUser(data));
         const profile = await loadProfile();
-        setAddresses((profile.addresses || []).map(normalizeAddress));
+        if (profile) {
+          setUser({
+            _id: profile._id,
+            name: profile.name,
+            email: profile.email,
+            role: profile.role,
+            phone: profile.phone,
+          });
+          setAddresses((profile.addresses || []).map(normalizeAddress));
+        } else {
+          setUser(normalizeUser(data));
+        }
         return true;
       } else {
         toast.error(data.message || "Signup failed");
@@ -147,10 +180,15 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await fetch(apiUrl("/api/auth/logout"), { method: "POST" });
+      await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
     } catch (error) {
       console.error("Logout error:", error);
     }
+    // Backward-compat cleanup (older builds stored auth in localStorage)
+    try {
+      localStorage.removeItem("ruvia_user");
+      localStorage.removeItem("ruvia_admin");
+    } catch {}
     setUser(null);
     setAddresses([]);
   };
@@ -161,6 +199,7 @@ export const AuthProvider = ({ children }) => {
       headers: {
         "Content-Type": "application/json",
       },
+      credentials: "include",
       body: JSON.stringify({ address: addr }),
     });
 
@@ -182,6 +221,9 @@ export const AuthProvider = ({ children }) => {
   const deleteAddress = async (id) => {
     const response = await fetch(apiUrl(`/api/auth/address/${id}`), {
       method: "DELETE",
+      headers: {
+      },
+      credentials: "include",
     });
 
     const data = await response.json();
@@ -200,6 +242,7 @@ export const AuthProvider = ({ children }) => {
       headers: {
         "Content-Type": "application/json",
       },
+      credentials: "include",
       body: JSON.stringify({
         name: updatedFields.name,
         email: updatedFields.email,

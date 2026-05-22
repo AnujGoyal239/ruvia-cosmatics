@@ -28,7 +28,7 @@ export default function AdminProductsPage() {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const response = await fetch(apiUrl("/api/products"));
+      const response = await fetch(apiUrl("/api/products"), { credentials: "include" });
 
       if (response.ok) {
         const data = await response.json();
@@ -62,6 +62,7 @@ export default function AdminProductsPage() {
     try {
       const response = await fetch(url, {
         method,
+        credentials: "include",
         body: formDataObj,
       });
 
@@ -90,6 +91,7 @@ export default function AdminProductsPage() {
     try {
       const response = await fetch(apiUrl(`/api/products/${productId}`), {
         method: "DELETE",
+        credentials: "include",
       });
 
       if (response.ok) {

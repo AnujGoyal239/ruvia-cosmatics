@@ -23,6 +23,7 @@ const cartRoutes = require('./routes/cartRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const returnRoutes = require('./routes/returnRoutes');
 const wishlistRoutes = require('./routes/wishlistRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 // Connect to database
 connectDB();
@@ -50,6 +51,7 @@ const corsOptions = {
       callback(new Error('Not allowed by CORS'));
     }
   },
+  credentials: true,
 };
 app.use(cors(corsOptions));
 
@@ -73,6 +75,7 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/returns', returnRoutes);
 app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Routes
 app.get('/', (req, res) => {

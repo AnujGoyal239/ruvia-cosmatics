@@ -137,7 +137,7 @@ export default function ProductDetailPage() {
   const handleReviewSubmit = async (event) => {
     event.preventDefault();
 
-    if (!user?.token) {
+    if (!user) {
       router.push(`/auth?redirect=${encodeURIComponent(`/shop/${product.id}?write_review=true`)}`);
       return;
     }
@@ -150,8 +150,8 @@ export default function ProductDetailPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
         },
+        credentials: "include",
         body: JSON.stringify({
           productId: product._id,
           rating: reviewRating,

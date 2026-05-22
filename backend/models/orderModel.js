@@ -15,8 +15,16 @@ const orderSchema = mongoose.Schema({
     img: { type: String, required: true }
   }],
   shippingAddress: {
-    street: String,
+    // Customer checkout fields (frontend uses these)
+    firstName: String,
+    lastName: String,
+    phone: String,
+    address: String,
     city: String,
+    pin: String,
+
+    // Backward compatibility / alternative naming
+    street: String,
     state: String,
     zipCode: String,
   },

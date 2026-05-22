@@ -122,9 +122,26 @@ const deleteReview = async (req, res) => {
   }
 };
 
+// @desc    Admin: Get all reviews
+// @route   GET /api/reviews/all
+// @access  Private/Admin
+const getAllReviews = async (req, res) => {
+  try {
+    const reviews = await Review.find({})
+      .sort({ createdAt: -1 })
+      .populate('product', 'name id image')
+      .populate('user', 'name email');
+    res.json(reviews);
+  } catch (error) {
+    console.error('Get all reviews error:', error);
+    res.status(500).json({ message: 'Server error while fetching reviews' });
+  }
+};
+
 module.exports = {
   createReview,
   getProductReviews,
   getMyReviews,
-  deleteReview
+  deleteReview,
+  getAllReviews
 };

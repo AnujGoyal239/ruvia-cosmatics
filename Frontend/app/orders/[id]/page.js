@@ -27,14 +27,12 @@ export default function OrderDetailsPage() {
 
   useEffect(() => {
     const loadOrder = async () => {
-      if (!user?.token || !orderId) return;
+      if (!user || !orderId) return;
 
       try {
         setLoadingOrder(true);
         const response = await fetch(apiUrl(`/api/orders/${orderId}`), {
-          headers: {
-            Authorization: `Bearer ${user.token}`,
-          },
+          credentials: "include",
         });
 
         const data = await response.json();
@@ -49,7 +47,7 @@ export default function OrderDetailsPage() {
     };
 
     loadOrder();
-  }, [user?.token, orderId]);
+  }, [user, orderId]);
 
   const view = useMemo(() => {
     if (!order) return null;
