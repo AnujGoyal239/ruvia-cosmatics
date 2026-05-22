@@ -51,7 +51,6 @@
     pointer-events: none;
     z-index: 9999;
     opacity: 0.03;
-    background-image: url("https://grainy-gradients.vercel.app/noise.svg");
   }
 }
 

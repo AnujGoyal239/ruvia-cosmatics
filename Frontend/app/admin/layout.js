@@ -1,21 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAdmin, AdminProvider } from "../../context/AdminContext";
 import { LayoutDashboard, Package, ShoppingCart, MessageSquare, LogOut, Menu, X } from "lucide-react";
 
 function AdminLayoutContent({ children }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { adminLogout, isAuthenticated, loading } = useAdmin();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    if (!loading && !isAuthenticated) {
+    // Only redirect to login if we are not authenticated AND not already on the login page
+    if (!loading && !isAuthenticated && pathname !== '/admin/login') {
       router.push("/admin/login");
     }
-  }, [isAuthenticated, loading, router]);
+  }, [isAuthenticated, loading, router, pathname]);
 
   if (loading) {
     return (
@@ -25,6 +27,12 @@ function AdminLayoutContent({ children }) {
     );
   }
 
+  // If the user is on the login page, just render the login page without the sidebar
+  if (pathname === '/admin/login') {
+    return <>{children}</>;
+  }
+
+  // For all other admin routes, if not authenticated, don't render the sidebar
   if (!isAuthenticated) {
     return null;
   }

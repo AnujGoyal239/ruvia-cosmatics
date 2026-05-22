@@ -17,7 +17,7 @@ export default function AdminOrdersPage() {
       const token = localStorage.getItem("ruvia_admin");
       if (!token) return;
 
-      const response = await fetch(apiUrl("/api/orders/myorders"), {
+      const response = await fetch(apiUrl("/api/orders/all"), {
         headers: {
           'Authorization': `Bearer ${JSON.parse(token).token}`,
         },

@@ -8,14 +8,16 @@ import CartCanvas from "../cart/CartCanvas";
 export default function ClientLayout({ children }) {
   const pathname = usePathname();
   const isAuthPage = pathname.startsWith("/auth");
+  const isAdminPage = pathname.startsWith("/admin");
+  const hideCustomerUI = isAuthPage || isAdminPage;
 
   return (
     <>
       <div className="grain" />
-      {!isAuthPage && <Header />}
+      {!hideCustomerUI && <Header />}
       <main className="flex-grow">{children}</main>
-      {!isAuthPage && <Footer />}
-      <CartCanvas />
+      {!hideCustomerUI && <Footer />}
+      {!isAdminPage && <CartCanvas />}
     </>
   );
 }

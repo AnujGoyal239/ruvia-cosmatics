@@ -137,10 +137,24 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
+// @desc    Admin: Get all orders
+// @route   GET /api/orders/all
+// @access  Private/Admin
+const getAllOrders = async (req, res) => {
+  try {
+    const orders = await Order.find({}).populate('user', 'name email');
+    res.json(orders);
+  } catch (error) {
+    console.error('Get all orders error:', error);
+    res.status(500).json({ message: 'Server error while fetching all orders' });
+  }
+};
+
 module.exports = {
   addOrderItems,
   getOrderById,
   updateOrderToPaid,
   getMyOrders,
+  getAllOrders,
   updateOrderStatus,
 };
