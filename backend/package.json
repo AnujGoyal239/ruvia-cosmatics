@@ -12,12 +12,10 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@clerk/clerk-sdk-node": "^4.13.23",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.10.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
-    "csurf": "^1.11.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^6.7.0",

@@ -3,7 +3,6 @@ const router = express.Router();
 const { body } = require('express-validator');
 const { authUser, registerUser, getUserProfile, updateUserProfile, addAddress, removeAddress } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
-const { clerkAuth } = require('../middleware/clerkMiddleware');
 const { runValidation } = require('../middleware/validateMiddleware');
 
 // Login validation
@@ -37,27 +36,5 @@ router.get('/me', protect, getUserProfile);
 router.put('/profile', protect, profileValidation, runValidation, updateUserProfile);
 router.post('/address', protect, addAddress);
 router.delete('/address/:addressId', protect, removeAddress);
-
-// Clerk SSO integration route
-router.post('/clerk-login', clerkAuth, (req, res) => {
-  // If clerkAuth succeeds, req.user is populated. Return custom token and user info.
-  const generateToken = require('../utils/generateToken');
-  
-  // Set HTTP-only cookie with JWT token
-  res.cookie('token', generateToken(req.user._id), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-  });
-  
-  res.json({
-    _id: req.user._id,
-    name: req.user.name,
-    email: req.user.email,
-    role: req.user.role,
-    clerkId: req.user.clerkId,
-  });
-});
 
 module.exports = router;
