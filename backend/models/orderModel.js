@@ -8,7 +8,7 @@ const orderSchema = mongoose.Schema({
   gst: { type: Number, required: true },
   shippingFee: { type: Number, required: true },
   items: [{
-    product: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'Product' },
+    product: { type: String, required: true },
     name: { type: String, required: true },
     price: { type: Number, required: true },
     qty: { type: Number, required: true },
@@ -20,7 +20,7 @@ const orderSchema = mongoose.Schema({
     state: String,
     zipCode: String,
   },
-  paymentMethod: { type: String, enum: ['Razorpay', 'COD'], required: true },
+  paymentMethod: { type: String, enum: ['Razorpay', 'COD', 'UPI'], required: true },
   paymentResult: {
     id: String,
     status: String,

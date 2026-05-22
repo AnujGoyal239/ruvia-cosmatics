@@ -15,8 +15,8 @@ const saveCart = async (req, res) => {
 
     let cart = await Cart.findOne({ user: req.user._id });
     const mapped = items.map(i => ({
-      productId: i.product || i.id,
-      id: i.id,
+      productId: String(i.product || i.id),
+      id: String(i.id),
       name: i.name,
       price: i.price,
       qty: i.quantity || i.qty || 1,

@@ -95,7 +95,7 @@ export default function CheckoutPage() {
     try {
       // Prepare order payload
       const items = cartItems.map(ci => ({ id: ci.id, name: ci.name, price: ci.price, qty: ci.quantity, img: ci.image || ci.img }));
-      const orderPaymentMethod = paymentMethod === 'cod' ? 'COD' : 'Razorpay';
+      const orderPaymentMethod = paymentMethod === 'cod' ? 'COD' : (paymentMethod === 'upi' ? 'UPI' : 'Razorpay');
 
       const shippingAddress = selectedAddressId && !showNewAddressForm
         ? addresses.find(a => a.id === selectedAddressId) || {}

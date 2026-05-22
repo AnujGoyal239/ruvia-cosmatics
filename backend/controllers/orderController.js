@@ -27,8 +27,16 @@ const addOrderItems = async (req, res) => {
       return res.status(400).json({ message: 'Payment method is required' });
     }
 
+    const validPaymentMethods = ['Razorpay', 'COD', 'UPI'];
+    if (!validPaymentMethods.includes(paymentMethod)) {
+      return res.status(400).json({ message: 'Invalid payment method' });
+    }
+
+    // For COD, order is created but not marked as paid
+    const isPaid = paymentMethod === 'COD' ? false : false;
+
     const order = new Order({
-      items: items.map(x => ({ ...x, product: x.id, _id: undefined })),
+      items: items.map(x => ({ ...x, product: String(x.id), _id: undefined })),
       user: req.user._id,
       shippingAddress,
       paymentMethod,
@@ -36,6 +44,7 @@ const addOrderItems = async (req, res) => {
       gst,
       shippingFee,
       total,
+      isPaid,
     });
 
     const createdOrder = await order.save();
