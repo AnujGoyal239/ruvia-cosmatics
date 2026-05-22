@@ -30,12 +30,19 @@ const authUser = async (req, res) => {
     }
 
     if (await user.matchPassword(password)) {
+      // Set HTTP-only cookie with JWT token
+      res.cookie('token', generateToken(user._id), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      });
+      
       res.json({
         _id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
-        token: generateToken(user._id),
       });
     } else {
       res.status(401).json({ message: 'Invalid email or password' });
@@ -86,12 +93,19 @@ const registerUser = async (req, res) => {
         // Don't fail registration if email fails
       }
 
+      // Set HTTP-only cookie with JWT token
+      res.cookie('token', generateToken(user._id), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      });
+
       res.status(201).json({
         _id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
-        token: generateToken(user._id),
       });
     } else {
       res.status(400).json({ message: 'Invalid user data' });
