@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { apiUrl } from "../../constants";
-import { Button } from "../../components/ui/Button";
+import { apiUrl } from "../../../constants";
+import { Button } from "../../../components/ui/Button";
 import { Plus, Edit, Trash2, Search } from "lucide-react";
 
 export default function AdminProductsPage() {

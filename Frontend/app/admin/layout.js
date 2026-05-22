@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAdmin } from "../context/AdminContext";
+import { useAdmin, AdminProvider } from "../../context/AdminContext";
 import { LayoutDashboard, Package, ShoppingCart, MessageSquare, LogOut, Menu, X } from "lucide-react";
 
-export default function AdminLayout({ children }) {
+function AdminLayoutContent({ children }) {
   const router = useRouter();
   const { adminLogout, isAuthenticated, loading } = useAdmin();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -107,5 +107,13 @@ export default function AdminLayout({ children }) {
         />
       )}
     </div>
+  );
+}
+
+export default function AdminLayout({ children }) {
+  return (
+    <AdminProvider>
+      <AdminLayoutContent>{children}</AdminLayoutContent>
+    </AdminProvider>
   );
 }

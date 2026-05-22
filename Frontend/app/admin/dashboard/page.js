@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useAdmin } from "../../context/AdminContext";
-import { apiUrl } from "../../constants";
+import { useAdmin } from "../../../context/AdminContext";
+import { apiUrl } from "../../../constants";
 import { Package, ShoppingCart, MessageSquare, TrendingUp } from "lucide-react";
 
 export default function AdminDashboardPage() {

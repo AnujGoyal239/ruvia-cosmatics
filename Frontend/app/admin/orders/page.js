@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { apiUrl } from "../../constants";
-import { Button } from "../../components/ui/Button";
+import { apiUrl } from "../../../constants";
+import { Button } from "../../../components/ui/Button";
 import { Search, Eye } from "lucide-react";
 
 export default function AdminOrdersPage() {

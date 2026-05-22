@@ -1,92 +1,45 @@
-"use client";
-
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { useAdmin } from "../../context/AdminContext";
-import { Button } from "../../components/ui/Button";
-
 export default function AdminLoginPage() {
-  const router = useRouter();
-  const { adminLogin, isAuthenticated } = useAdmin();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  if (isAuthenticated) {
-    router.push("/admin/dashboard");
-    return null;
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    const result = await adminLogin(email, password);
-    
-    if (result.success) {
-      router.push("/admin/dashboard");
-    } else {
-      setError(result.message);
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#FDFBF7] px-4">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
-        <div className="text-center mb-8">
-          <h1 className="font-serif text-3xl font-bold text-brand-dark mb-2">Admin Portal</h1>
-          <p className="text-sm text-brand-dark/60">Ruvia Cosmetics Management</p>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FDFBF7', padding: '16px' }}>
+      <div style={{ maxWidth: '400px', width: '100%', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', padding: '32px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px' }}>Admin Portal</h1>
+          <p style={{ fontSize: '14px', color: '#666' }}>Ruvia Cosmetics Management</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
-              {error}
-            </div>
-          )}
-
+        <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <label className="block text-sm font-medium text-brand-dark mb-2">Email</label>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>Email</label>
             <input
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-brand-dark/10 rounded-md focus:border-brand-pink focus:ring-1 focus:ring-brand-pink outline-none"
               placeholder="admin@ruvia.com"
               required
+              style={{ width: '100%', padding: '12px', border: '1px solid #ddd', borderRadius: '4px' }}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-brand-dark mb-2">Password</label>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>Password</label>
             <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-brand-dark/10 rounded-md focus:border-brand-pink focus:ring-1 focus:ring-brand-pink outline-none"
               placeholder="••••••••"
               required
+              style={{ width: '100%', padding: '12px', border: '1px solid #ddd', borderRadius: '4px' }}
             />
           </div>
 
-          <Button
+          <button
             type="submit"
-            variant="primary"
-            className="w-full rounded-md"
-            disabled={loading}
+            style={{ width: '100%', padding: '12px', backgroundColor: '#333', color: 'white', borderRadius: '4px', fontWeight: '500', cursor: 'pointer' }}
           >
-            {loading ? "Logging in..." : "Login"}
-          </Button>
+            Login
+          </button>
         </form>
 
-        <div className="mt-6 text-center">
-          <Link href="/" className="text-sm text-brand-dark/60 hover:text-brand-pink">
+        <div style={{ marginTop: '24px', textAlign: 'center' }}>
+          <a href="/" style={{ fontSize: '14px', color: '#666', textDecoration: 'none' }}>
             ← Back to Website
-          </Link>
+          </a>
         </div>
       </div>
     </div>

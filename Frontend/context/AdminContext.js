@@ -100,5 +100,5 @@ export const AdminProvider = ({ children }) => {
     isAuthenticated: !!admin
   };
 
-  return <AdminContext.Provider value={value}>{!loading && children}</AdminContext.Provider>;
+  return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>;
 };
