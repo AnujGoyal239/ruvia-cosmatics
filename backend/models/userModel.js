@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const userSchema = mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
-  password: { type: String }, // Optional because Clerk users won't have a password
+  password: { type: String, required: true },
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
   phone: { type: String },
   addresses: [{
@@ -15,7 +15,6 @@ const userSchema = mongoose.Schema({
     city: String,
     pin: String,
   }],
-  clerkId: { type: String, unique: true, sparse: true } // For Clerk SSO integration
 }, { timestamps: true });
 
 // Password hash middleware
