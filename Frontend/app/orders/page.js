@@ -27,6 +27,9 @@ export default function OrdersPage() {
   const [returnReason, setReturnReason] = useState("");
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [trackingData, setTrackingData] = useState(null);
+  const [trackingLoading, setTrackingLoading] = useState(false);
+  const [trackingError, setTrackingError] = useState("");
 
   useEffect(() => {
     if (!loading && !user) {
@@ -36,14 +39,12 @@ export default function OrdersPage() {
 
   useEffect(() => {
     const loadOrders = async () => {
-      if (!user?.token) return;
+      if (!user) return;
 
       try {
         setOrdersLoading(true);
         const response = await fetch(apiUrl("/api/orders/myorders"), {
-          headers: {
-            Authorization: `Bearer ${user.token}`,
-          },
+          credentials: "include",
         });
         const data = await response.json();
         if (response.ok && Array.isArray(data)) {
@@ -57,7 +58,38 @@ export default function OrdersPage() {
     };
 
     loadOrders();
-  }, [user?.token]);
+  }, [user]);
+
+  // Live tracking (poll every 5s while modal is open)
+  useEffect(() => {
+    if (!trackingModalOrderId || !user) return;
+
+    let cancelled = false;
+    const fetchTracking = async () => {
+      try {
+        setTrackingLoading(true);
+        setTrackingError("");
+        const res = await fetch(apiUrl(`/api/orders/${trackingModalOrderId}/tracking`), {
+          credentials: "include",
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.message || "Failed to fetch tracking");
+        if (!cancelled) setTrackingData(data);
+      } catch (e) {
+        console.error("Tracking fetch failed:", e);
+        if (!cancelled) setTrackingError(e.message || "Failed to fetch tracking");
+      } finally {
+        if (!cancelled) setTrackingLoading(false);
+      }
+    };
+
+    fetchTracking();
+    const interval = setInterval(fetchTracking, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [trackingModalOrderId, user]);
 
   const formatOrderId = (order) => order?._id ? `ORD-${order._id.slice(-6).toUpperCase()}` : "ORDER";
   const formatOrderDate = (order) => order?.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" }) : "Recent";
@@ -73,6 +105,7 @@ export default function OrdersPage() {
       id: item.product || item.id,
       name: item.name,
       price: `₹${Number(item.price || 0).toLocaleString('en-IN')}`,
+      qty: item.qty || 1,
       img: item.img || "/images/serum.png",
       isShipped: (order.status || "").toLowerCase() !== "processing",
       isCancelled: (order.status || "").toLowerCase() === "cancelled",
@@ -193,61 +226,67 @@ export default function OrdersPage() {
         <div className="fixed inset-0 z-300 flex items-center justify-center p-6">
           <div 
             className="absolute inset-0 bg-brand-dark/60 backdrop-blur-md animate-in fade-in duration-500" 
-            onClick={() => setTrackingModalOrderId(null)}
+            onClick={() => { setTrackingModalOrderId(null); setTrackingData(null); setTrackingError(""); }}
           />
           <div className="relative bg-white w-full max-w-lg rounded-[3rem] p-10 shadow-2xl animate-in zoom-in fade-in duration-500">
             <button 
-              onClick={() => setTrackingModalOrderId(null)}
+              onClick={() => { setTrackingModalOrderId(null); setTrackingData(null); setTrackingError(""); }}
               className="absolute top-6 right-6 w-10 h-10 rounded-full border border-brand-dark/10 flex items-center justify-center text-brand-dark hover:bg-brand-pink hover:text-white transition-all"
             >
               <X size={18} />
             </button>
             <h3 className="font-serif text-3xl font-bold text-brand-dark mb-2">Track <span className="text-brand-pink italic">Package.</span></h3>
             <p className="text-[10px] font-black uppercase tracking-widest text-brand-dark/40 mb-8">Order #{trackingModalOrderId}</p>
-            
-            <div className="space-y-8 relative before:absolute before:inset-0 before:ml-3.75 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-linear-to-b before:from-brand-pink before:via-brand-dark/20 before:to-transparent">
-              <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                <div className="flex items-center justify-center w-8 h-8 rounded-full border-4 border-white bg-brand-pink text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
-                  <CheckCircle2 size={14} />
-                </div>
-                <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-2xl border border-brand-dark/10 shadow-sm">
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="font-bold text-brand-dark text-xs">Ordered</h4>
-                    <span className="text-[9px] font-black uppercase tracking-widest text-brand-dark/30">12 Oct</span>
-                  </div>
-                  <p className="text-[10px] text-brand-dark/50">Order successfully placed.</p>
-                </div>
-              </div>
-              
-              <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                <div className="flex items-center justify-center w-8 h-8 rounded-full border-4 border-white bg-brand-pink text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
-                  <Package size={14} />
-                </div>
-                <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-2xl border border-brand-dark/10 shadow-sm">
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="font-bold text-brand-dark text-xs">Shipped</h4>
-                    <span className="text-[9px] font-black uppercase tracking-widest text-brand-dark/30">13 Oct</span>
-                  </div>
-                  <p className="text-[10px] text-brand-dark/50">Package handed to delivery partner.</p>
-                </div>
-              </div>
 
-              <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
-                <div className="flex items-center justify-center w-8 h-8 rounded-full border-4 border-white bg-brand-dark/10 text-brand-dark/30 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
-                  <Truck size={14} />
-                </div>
-                <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-2xl border border-brand-dark/10 shadow-sm opacity-50">
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="font-bold text-brand-dark text-xs">Out for Delivery</h4>
-                    <span className="text-[9px] font-black uppercase tracking-widest text-brand-dark/30">Pending</span>
-                  </div>
-                  <p className="text-[10px] text-brand-dark/50">Arriving soon.</p>
-                </div>
+            {trackingError ? (
+              <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4 text-sm">
+                {trackingError}
               </div>
-            </div>
+            ) : (
+              <div className="space-y-8 relative before:absolute before:inset-0 before:ml-3.75 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-linear-to-b before:from-brand-pink before:via-brand-dark/20 before:to-transparent">
+                {trackingLoading && !trackingData ? (
+                  <div className="text-sm text-brand-dark/50">Loading tracking…</div>
+                ) : (trackingData?.trackingEvents || []).length === 0 ? (
+                  <div className="text-sm text-brand-dark/50">No tracking events yet.</div>
+                ) : (
+                  (trackingData?.trackingEvents || []).map((ev, idx) => {
+                    const statusText = ev?.status || "Update";
+                    const lower = statusText.toLowerCase();
+                    const Icon =
+                      lower.includes("deliver") ? CheckCircle2 :
+                      lower.includes("out for") ? Truck :
+                      lower.includes("ship") ? Package :
+                      lower.includes("order") ? CheckCircle2 :
+                      CheckCircle2;
+                    const ts = ev?.timestamp ? new Date(ev.timestamp) : null;
+                    const timeLabel = ts ? ts.toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+                    const isLatest = idx === (trackingData.trackingEvents.length - 1);
+
+                    return (
+                      <div key={`${statusText}-${idx}`} className={`relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group ${isLatest ? "is-active" : ""}`}>
+                        <div className={`flex items-center justify-center w-8 h-8 rounded-full border-4 border-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 ${isLatest ? "bg-brand-pink text-white" : "bg-brand-dark/10 text-brand-dark/50"}`}>
+                          <Icon size={14} />
+                        </div>
+                        <div className={`w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-2xl border border-brand-dark/10 shadow-sm ${isLatest ? "" : "opacity-80"}`}>
+                          <div className="flex items-center justify-between mb-1 gap-3">
+                            <h4 className="font-bold text-brand-dark text-xs">{statusText}</h4>
+                            <span className="text-[9px] font-black uppercase tracking-widest text-brand-dark/30 whitespace-nowrap">
+                              {timeLabel || "—"}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-brand-dark/50">
+                            {statusText === "Ordered" ? "Order successfully placed." : "Status updated."}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
             
             <button 
-              onClick={() => setTrackingModalOrderId(null)}
+              onClick={() => { setTrackingModalOrderId(null); setTrackingData(null); setTrackingError(""); }}
               className="mt-8 w-full h-14 rounded-xl bg-brand-dark text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-xl hover:bg-brand-pink transition-all duration-300"
             >
               Close Tracking
@@ -405,7 +444,7 @@ export default function OrdersPage() {
                           
                           <div className="flex flex-col sm:items-end gap-1">
                             <span className="text-sm font-bold text-brand-dark">{item.price}</span>
-                            <span className="text-[9px] font-black tracking-widest uppercase text-brand-dark/40">Quantity: 1</span>
+                            <span className="text-[9px] font-black tracking-widest uppercase text-brand-dark/40">Quantity: {item.qty}</span>
                           </div>
                         </div>
                       ))}

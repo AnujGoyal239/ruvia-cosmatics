@@ -12,6 +12,8 @@ const addOrderItems = async (req, res) => {
       paymentMethod,
     } = req.body;
 
+    console.log('Order request body:', { items: items?.length, shippingAddress: !!shippingAddress, paymentMethod });
+
     if (!items || items.length === 0) {
       return res.status(400).json({ message: 'No order items' });
     }
@@ -19,6 +21,19 @@ const addOrderItems = async (req, res) => {
     if (!shippingAddress) {
       return res.status(400).json({ message: 'Shipping address is required' });
     }
+
+    // Normalize shipping address keys (frontend uses address/pin; schema supports both)
+    const normalizedShippingAddress = {
+      firstName: shippingAddress.firstName || '',
+      lastName: shippingAddress.lastName || '',
+      phone: shippingAddress.phone || '',
+      address: shippingAddress.address || shippingAddress.street || '',
+      city: shippingAddress.city || '',
+      pin: shippingAddress.pin || shippingAddress.zipCode || '',
+      street: shippingAddress.street || shippingAddress.address || '',
+      state: shippingAddress.state || '',
+      zipCode: shippingAddress.zipCode || shippingAddress.pin || '',
+    };
 
     if (!paymentMethod) {
       return res.status(400).json({ message: 'Payment method is required' });
@@ -34,8 +49,10 @@ const addOrderItems = async (req, res) => {
     const verifiedItems = [];
     
     for (const item of items) {
+      console.log('Looking for product with id:', item.id);
       const product = await Product.findOne({ id: String(item.id) });
       if (!product) {
+        console.error(`Product not found with id: ${item.id}`);
         return res.status(400).json({ message: `Product ${item.id} not found` });
       }
 
@@ -69,29 +86,33 @@ const addOrderItems = async (req, res) => {
     const order = new Order({
       items: verifiedItems,
       user: req.user._id,
-      shippingAddress,
+      shippingAddress: normalizedShippingAddress,
       paymentMethod,
       subtotal: itemsPrice,  // ✅ Server-calculated
       gst,  // ✅ Server-calculated
       shippingFee,  // ✅ Server-calculated
       total,  // ✅ Server-calculated
       isPaid,
+      trackingEvents: [{ status: 'Ordered', timestamp: new Date() }],
     });
 
     const createdOrder = await order.save();
 
     // ✅ Update stock
     for (const item of verifiedItems) {
-      await Product.findByIdAndUpdate(
-        item.product,
-        { $inc: { countInStock: -item.qty } }
+      // NOTE: `item.product` stores the product "public id" (slug), not Mongo _id.
+      // So we must update by `id` field (unique + indexed) instead of findByIdAndUpdate.
+      await Product.findOneAndUpdate(
+        { id: String(item.product) },
+        { $inc: { countInStock: -item.qty } },
+        { new: false }
       );
     }
 
     res.status(201).json(createdOrder);
   } catch (error) {
     console.error('Create order error:', error);
-    res.status(500).json({ message: 'Server error while creating order' });
+    res.status(500).json({ message: 'Server error while creating order', error: error.message });
   }
 };
 
@@ -177,12 +198,71 @@ const updateOrderStatus = async (req, res) => {
     const { status } = req.body;
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    order.status = status || order.status;
+    const nextStatus = status || order.status;
+    const prevStatus = order.status;
+    order.status = nextStatus;
+    // Add a tracking event when status changes
+    if (nextStatus && nextStatus !== prevStatus) {
+      order.trackingEvents = order.trackingEvents || [];
+      order.trackingEvents.push({ status: nextStatus, timestamp: new Date() });
+    }
     await order.save();
     res.json(order);
   } catch (err) {
     console.error('updateOrderStatus error', err);
     res.status(500).json({ message: 'Could not update order status' });
+  }
+};
+
+// @desc    Get tracking events for an order (customer or admin)
+// @route   GET /api/orders/:id/tracking
+// @access  Private
+const getOrderTracking = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id).populate('user', 'name email');
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // Ownership check (or admin)
+    if (order.user?._id?.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized to access this order' });
+    }
+
+    const events = Array.isArray(order.trackingEvents) ? order.trackingEvents : [];
+    // Sort ascending by time
+    events.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    res.json({
+      orderId: order._id,
+      status: order.status,
+      isPaid: order.isPaid,
+      paymentMethod: order.paymentMethod,
+      trackingEvents: events,
+      updatedAt: order.updatedAt,
+    });
+  } catch (error) {
+    console.error('getOrderTracking error:', error);
+    res.status(500).json({ message: 'Server error while fetching tracking' });
+  }
+};
+
+// @desc    Admin: add a tracking event manually
+// @route   POST /api/orders/:id/tracking
+// @access  Private/Admin
+const addOrderTrackingEvent = async (req, res) => {
+  try {
+    const { status, timestamp } = req.body || {};
+    if (!status) return res.status(400).json({ message: 'status is required' });
+
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    order.trackingEvents = order.trackingEvents || [];
+    order.trackingEvents.push({ status, timestamp: timestamp ? new Date(timestamp) : new Date() });
+    await order.save();
+    res.json({ message: 'Tracking event added', trackingEvents: order.trackingEvents });
+  } catch (error) {
+    console.error('addOrderTrackingEvent error:', error);
+    res.status(500).json({ message: 'Server error while updating tracking' });
   }
 };
 
@@ -206,4 +286,6 @@ module.exports = {
   getMyOrders,
   getAllOrders,
   updateOrderStatus,
+  getOrderTracking,
+  addOrderTrackingEvent,
 };

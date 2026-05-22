@@ -15,13 +15,8 @@ export default function AdminOrdersPage() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const token = localStorage.getItem("ruvia_admin");
-      if (!token) return;
-
       const response = await fetch(apiUrl("/api/orders/all"), {
-        headers: {
-          'Authorization': `Bearer ${JSON.parse(token).token}`,
-        },
+        credentials: "include",
       });
 
       if (response.ok) {
@@ -46,6 +41,7 @@ export default function AdminOrdersPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: "include",
         body: JSON.stringify({ status: newStatus }),
       });
 

@@ -13,7 +13,7 @@ export default function AdminReviewsPage() {
 
   const fetchReviews = useCallback(async () => {
     try {
-      const response = await fetch(apiUrl("/api/reviews/myreviews"));
+      const response = await fetch(apiUrl("/api/reviews/all"), { credentials: "include" });
 
       if (response.ok) {
         const data = await response.json();
@@ -36,6 +36,7 @@ export default function AdminReviewsPage() {
     try {
       const response = await fetch(apiUrl(`/api/reviews/${reviewId}`), {
         method: "DELETE",
+        credentials: "include",
       });
 
       if (response.ok) {

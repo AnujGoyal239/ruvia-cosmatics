@@ -30,20 +30,15 @@ export function CartProvider({ children }) {
     if (syncRef.current) clearTimeout(syncRef.current);
     syncRef.current = setTimeout(() => {
       if (typeof window !== "undefined") {
-        const storedUser = localStorage.getItem("ruvia_user");
-        if (storedUser) {
-          const user = JSON.parse(storedUser);
-          if (user && user.token) {
-            fetch(apiUrl("/api/cart"), {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${user.token}`,
-              },
-              body: JSON.stringify({ items: cartItems }),
-            }).catch((err) => console.error("Cart sync failed:", err));
-          }
-        }
+        // Cookie-based auth (if user is logged in, cookie will be sent)
+        fetch(apiUrl("/api/cart"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ items: cartItems }),
+        }).catch((err) => console.error("Cart sync failed:", err));
       }
     }, 800);
   }, [cartItems]);
@@ -52,16 +47,9 @@ export function CartProvider({ children }) {
   useEffect(() => {
     const trySyncFromServer = async () => {
       try {
-        const storedUser = localStorage.getItem("ruvia_user");
-        if (!storedUser) return;
-        const user = JSON.parse(storedUser);
-        if (!user || !user.token) return;
-
         const res = await fetch(apiUrl("/api/cart"), {
           method: "GET",
-          headers: {
-            Authorization: `Bearer ${user.token}`,
-          },
+          credentials: "include",
         });
         if (!res.ok) return;
         const data = await res.json();
@@ -132,22 +120,14 @@ export function CartProvider({ children }) {
 
   const clearCart = () => {
     setCartItems([]);
-    const storedUser = typeof window !== "undefined" && localStorage.getItem("ruvia_user");
-    if (storedUser) {
-      try {
-        const user = JSON.parse(storedUser);
-        if (user && user.token) {
-          fetch(apiUrl("/api/cart"), {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${user.token}`,
-            },
-            body: JSON.stringify({ items: [] }),
-          }).catch(() => {});
-        }
-      } catch {}
-    }
+    fetch(apiUrl("/api/cart"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({ items: [] }),
+    }).catch(() => {});
   };
 
   const value = {

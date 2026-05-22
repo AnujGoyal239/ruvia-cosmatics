@@ -30,8 +30,10 @@ const authUser = async (req, res) => {
     }
 
     if (await user.matchPassword(password)) {
+      const token = generateToken(user._id);
+      
       // Set HTTP-only cookie with JWT token
-      res.cookie('token', generateToken(user._id), {
+      res.cookie('token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
@@ -43,6 +45,7 @@ const authUser = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        token: token,
       });
     } else {
       res.status(401).json({ message: 'Invalid email or password' });
@@ -81,6 +84,8 @@ const registerUser = async (req, res) => {
     });
 
     if (user) {
+      const token = generateToken(user._id);
+      
       // Send Welcome Email asynchronously
       try {
         await sendEmail({
@@ -94,7 +99,7 @@ const registerUser = async (req, res) => {
       }
 
       // Set HTTP-only cookie with JWT token
-      res.cookie('token', generateToken(user._id), {
+      res.cookie('token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
@@ -106,6 +111,7 @@ const registerUser = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        token: token,
       });
     } else {
       res.status(400).json({ message: 'Invalid user data' });

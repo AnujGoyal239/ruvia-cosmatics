@@ -86,7 +86,7 @@ export default function CheckoutPage() {
     e.preventDefault();
     if (paymentMethod !== "cod" && !validatePayment()) return;
 
-    if (!user || !user.token) {
+    if (!user) {
       toast.error('You must be logged in to place an order');
       return;
     }
@@ -116,8 +116,8 @@ export default function CheckoutPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${user.token}`,
         },
+        credentials: "include",
         body: JSON.stringify(payload),
       });
 
@@ -141,8 +141,8 @@ export default function CheckoutPage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${user.token}`,
           },
+          credentials: "include",
           body: JSON.stringify({ amount: finalTotal, orderId: data._id }),
         });
         const rpData = await rpRes.json();
@@ -181,8 +181,8 @@ export default function CheckoutPage() {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  Authorization: `Bearer ${user.token}`,
                 },
+                credentials: "include",
                 body: JSON.stringify({
                   razorpay_order_id: response.razorpay_order_id,
                   razorpay_payment_id: response.razorpay_payment_id,

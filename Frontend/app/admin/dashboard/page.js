@@ -1,121 +1,403 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAdmin } from "../../../context/AdminContext";
 import { apiUrl } from "../../../constants";
-import { Package, ShoppingCart, MessageSquare, TrendingUp } from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  Activity,
+  ArrowUpRight,
+  BadgeIndianRupee,
+  Package,
+  ShoppingCart,
+  Star,
+  Truck,
+  TriangleAlert,
+} from "lucide-react";
 
 export default function AdminDashboardPage() {
   const { admin } = useAdmin();
-  const [stats, setStats] = useState({
-    totalProducts: 0,
-    totalOrders: 0,
-    totalReturns: 0,
-    totalReviews: 0,
-  });
+  const [range, setRange] = useState("30d"); // 7d | 30d | 90d
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  const fetchStats = useCallback(async () => {
-    try {
-      const token = localStorage.getItem("ruvia_admin");
-      if (!token) return;
-
-      const headers = {
-        'Authorization': `Bearer ${JSON.parse(token).token}`,
-        'Content-Type': 'application/json'
-      };
-
-      // Fetch products count
-      const productsRes = await fetch(apiUrl("/api/products"), { headers });
-      const productsData = await productsRes.json();
-      
-      // Fetch orders count
-      const ordersRes = await fetch(apiUrl("/api/orders/all"), { headers });
-      const ordersData = await ordersRes.json();
-
-      setStats({
-        totalProducts: Array.isArray(productsData) ? productsData.length : 0,
-        totalOrders: Array.isArray(ordersData) ? ordersData.length : 0,
-        totalReturns: 0,
-        totalReviews: 0,
-      });
-    } catch (error) {
-      console.error("Failed to fetch stats:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError("");
 
-  const statCards = [
-    { title: "Total Products", value: stats.totalProducts, icon: Package, color: "bg-blue-500" },
-    { title: "Total Orders", value: stats.totalOrders, icon: ShoppingCart, color: "bg-green-500" },
-    { title: "Pending Returns", value: stats.totalReturns, icon: MessageSquare, color: "bg-orange-500" },
-    { title: "Total Reviews", value: stats.totalReviews, icon: TrendingUp, color: "bg-purple-500" },
-  ];
+        const res = await fetch(apiUrl(`/api/admin/dashboard?range=${encodeURIComponent(range)}`), {
+          credentials: "include",
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.message || "Failed to load dashboard");
+        setData(json);
+      } catch (e) {
+        console.error("Admin dashboard load failed:", e);
+        setError(e.message || "Failed to load dashboard");
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [range]);
+
+  const kpis = data?.kpis;
+  const rangeDays = data?.rangeDays || 30;
+  const series = data?.charts?.ordersRevenueByDay || [];
+  const ordersByStatus = data?.charts?.ordersByStatus || [];
+  const paymentBreakdown = data?.charts?.paymentBreakdown || [];
+  const lowStock = data?.lists?.lowStock || [];
+  const recentOrders = data?.lists?.recentOrders || [];
+
+  const currency = (value) =>
+    `₹${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+
+  const kpiCards = useMemo(() => {
+    return [
+      {
+        title: "Revenue",
+        value: currency(kpis?.revenueInRange),
+        sub: `Last ${rangeDays} days`,
+        icon: BadgeIndianRupee,
+        accent: "bg-brand-pink/10 text-brand-pink",
+      },
+      {
+        title: "Orders",
+        value: String(kpis?.ordersInRange ?? 0),
+        sub: "In selected range",
+        icon: ShoppingCart,
+        accent: "bg-emerald-500/10 text-emerald-600",
+      },
+      {
+        title: "AOV",
+        value: currency(kpis?.aovInRange),
+        sub: "Average order value",
+        icon: Activity,
+        accent: "bg-indigo-500/10 text-indigo-600",
+      },
+      {
+        title: "Low stock",
+        value: String(kpis?.lowStockCount ?? 0),
+        sub: "Needs restock",
+        icon: TriangleAlert,
+        accent: "bg-orange-500/10 text-orange-600",
+      },
+    ];
+  }, [kpis, rangeDays]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-brand-dark">Loading dashboard...</div>
+      <div className="space-y-6">
+        <div>
+          <div className="h-8 w-48 bg-brand-dark/10 rounded-md animate-pulse" />
+          <div className="h-4 w-64 bg-brand-dark/10 rounded-md animate-pulse mt-3" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white rounded-lg shadow-sm border border-brand-dark/10 p-6">
+              <div className="h-4 w-24 bg-brand-dark/10 rounded animate-pulse mb-4" />
+              <div className="h-8 w-32 bg-brand-dark/10 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="font-serif text-3xl font-bold text-brand-dark mb-2">Dashboard</h1>
-        <p className="text-brand-dark/60">Welcome back, {admin?.name || "Admin"}</p>
+    <div className="space-y-8">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+          <h1 className="font-serif text-3xl font-bold text-brand-dark">Dashboard</h1>
+          <p className="text-brand-dark/60 mt-1">
+            Welcome back, <span className="font-medium text-brand-dark">{admin?.name || "Admin"}</span>
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="text-[10px] font-black tracking-widest uppercase text-brand-dark/40">Range</div>
+          <div className="inline-flex bg-white border border-brand-dark/10 rounded-lg p-1 shadow-sm">
+            {[
+              { key: "7d", label: "7D" },
+              { key: "30d", label: "30D" },
+              { key: "90d", label: "90D" },
+            ].map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => setRange(opt.key)}
+                className={`px-3 py-2 rounded-md text-[10px] font-black tracking-widest uppercase transition-colors ${
+                  range === opt.key ? "bg-brand-dark text-white" : "text-brand-dark/60 hover:bg-brand-dark/5"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {statCards.map((stat) => {
-          const Icon = stat.icon;
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* KPI cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        {kpiCards.map((c) => {
+          const Icon = c.icon;
           return (
-            <div key={stat.title} className="bg-white rounded-lg shadow-sm border border-brand-dark/10 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 rounded-lg ${stat.color} bg-opacity-10`}>
-                  <Icon size={24} className={stat.color.replace('bg-', 'text-')} />
+            <div key={c.title} className="bg-white rounded-xl shadow-sm border border-brand-dark/10 p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-[10px] font-black tracking-widest uppercase text-brand-dark/40">{c.title}</div>
+                  <div className="mt-2 text-3xl font-black tracking-tight text-brand-dark">{c.value}</div>
+                  <div className="mt-2 text-xs text-brand-dark/50 font-medium">{c.sub}</div>
                 </div>
-                <span className="text-2xl font-bold text-brand-dark">{stat.value}</span>
+                <div className={`p-3 rounded-xl ${c.accent}`}>
+                  <Icon size={22} />
+                </div>
               </div>
-              <h3 className="text-sm font-medium text-brand-dark/60">{stat.title}</h3>
             </div>
           );
         })}
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-brand-dark/10 p-6">
-        <h2 className="font-serif text-xl font-bold text-brand-dark mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <a
-            href="/admin/products"
-            className="p-4 border border-brand-dark/10 rounded-lg hover:border-brand-pink hover:bg-brand-pink/5 transition-colors"
-          >
-            <Package className="text-brand-dark mb-2" size={24} />
-            <h3 className="font-medium text-brand-dark">Manage Products</h3>
-            <p className="text-sm text-brand-dark/60">Add, edit, or delete products</p>
-          </a>
-          <a
-            href="/admin/orders"
-            className="p-4 border border-brand-dark/10 rounded-lg hover:border-brand-pink hover:bg-brand-pink/5 transition-colors"
-          >
-            <ShoppingCart className="text-brand-dark mb-2" size={24} />
-            <h3 className="font-medium text-brand-dark">View Orders</h3>
-            <p className="text-sm text-brand-dark/60">Manage and track orders</p>
-          </a>
-          <a
-            href="/admin/returns"
-            className="p-4 border border-brand-dark/10 rounded-lg hover:border-brand-pink hover:bg-brand-pink/5 transition-colors"
-          >
-            <MessageSquare className="text-brand-dark mb-2" size={24} />
-            <h3 className="font-medium text-brand-dark">Handle Returns</h3>
-            <p className="text-sm text-brand-dark/60">Process return requests</p>
-          </a>
+      {/* Charts */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        <div className="xl:col-span-8 bg-white rounded-xl shadow-sm border border-brand-dark/10 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="font-serif text-xl font-bold text-brand-dark">Revenue & Orders</h2>
+              <p className="text-xs text-brand-dark/50 font-medium">Daily trend (selected range)</p>
+            </div>
+          </div>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={series} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#FF4FA3" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#FF4FA3" stopOpacity={0.05} />
+                  </linearGradient>
+                  <linearGradient id="ordFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#111827" stopOpacity={0.18} />
+                    <stop offset="95%" stopColor="#111827" stopOpacity={0.03} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                <XAxis dataKey="date" tick={{ fontSize: 10 }} tickMargin={8} />
+                <YAxis yAxisId="left" tick={{ fontSize: 10 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} />
+                <Tooltip
+                  formatter={(value, name) => {
+                    if (name === "revenue") return [currency(value), "Revenue"];
+                    return [value, "Orders"];
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Area yAxisId="left" type="monotone" dataKey="revenue" name="Revenue" stroke="#FF4FA3" fill="url(#revFill)" />
+                <Area yAxisId="right" type="monotone" dataKey="orders" name="Orders" stroke="#111827" fill="url(#ordFill)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="xl:col-span-4 grid grid-cols-1 gap-6">
+          <div className="bg-white rounded-xl shadow-sm border border-brand-dark/10 p-6">
+            <h2 className="font-serif text-xl font-bold text-brand-dark">Order status</h2>
+            <p className="text-xs text-brand-dark/50 font-medium">Distribution</p>
+            <div className="h-64 mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Tooltip />
+                  <Pie
+                    data={ordersByStatus}
+                    dataKey="count"
+                    nameKey="status"
+                    innerRadius={48}
+                    outerRadius={88}
+                    paddingAngle={2}
+                    fill="#FF4FA3"
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-brand-dark/10 p-6">
+            <h2 className="font-serif text-xl font-bold text-brand-dark">Payment mix</h2>
+            <p className="text-xs text-brand-dark/50 font-medium">COD vs Razorpay vs UPI</p>
+            <div className="h-56 mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={paymentBreakdown}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                  <XAxis dataKey="method" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#111827" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Lists */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        <div className="xl:col-span-8 bg-white rounded-xl shadow-sm border border-brand-dark/10 overflow-hidden">
+          <div className="p-6 flex items-center justify-between">
+            <div>
+              <h2 className="font-serif text-xl font-bold text-brand-dark">Recent orders</h2>
+              <p className="text-xs text-brand-dark/50 font-medium">Latest 8 orders</p>
+            </div>
+            <a
+              href="/admin/orders"
+              className="inline-flex items-center gap-2 text-[10px] font-black tracking-widest uppercase text-brand-pink hover:text-brand-dark transition-colors"
+            >
+              View all <ArrowUpRight size={14} />
+            </a>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-brand-dark/5">
+                <tr>
+                  <th className="text-left p-4 text-xs font-black tracking-widest uppercase text-brand-dark/60">Order</th>
+                  <th className="text-left p-4 text-xs font-black tracking-widest uppercase text-brand-dark/60">Customer</th>
+                  <th className="text-left p-4 text-xs font-black tracking-widest uppercase text-brand-dark/60">Total</th>
+                  <th className="text-left p-4 text-xs font-black tracking-widest uppercase text-brand-dark/60">Status</th>
+                  <th className="text-left p-4 text-xs font-black tracking-widest uppercase text-brand-dark/60">Payment</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-brand-dark/50 text-sm">
+                      No orders found yet.
+                    </td>
+                  </tr>
+                ) : (
+                  recentOrders.map((o) => (
+                    <tr key={o._id} className="border-t border-brand-dark/10">
+                      <td className="p-4 font-medium text-brand-dark">{String(o._id).slice(-8).toUpperCase()}</td>
+                      <td className="p-4 text-brand-dark/60">{o.user?.name || "N/A"}</td>
+                      <td className="p-4 font-black text-brand-dark">{currency(o.total)}</td>
+                      <td className="p-4">
+                        <span className="inline-flex items-center gap-2 text-xs font-medium text-brand-dark/70">
+                          <Truck size={14} className="text-brand-dark/40" />
+                          {o.status || "Processing"}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span className="inline-flex items-center gap-2 text-xs font-medium text-brand-dark/70">
+                          <BadgeIndianRupee size={14} className="text-brand-dark/40" />
+                          {o.paymentMethod || "N/A"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="xl:col-span-4 grid grid-cols-1 gap-6">
+          <div className="bg-white rounded-xl shadow-sm border border-brand-dark/10 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-serif text-xl font-bold text-brand-dark">Inventory alerts</h2>
+                <p className="text-xs text-brand-dark/50 font-medium">Low stock items</p>
+              </div>
+              <Package size={18} className="text-brand-dark/40" />
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {lowStock.length === 0 ? (
+                <div className="text-sm text-brand-dark/50">No low stock items.</div>
+              ) : (
+                lowStock.map((p) => (
+                  <div key={p._id} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-brand-dark/10">
+                    <div className="min-w-0">
+                      <div className="font-medium text-brand-dark truncate">{p.name}</div>
+                      <div className="text-[10px] font-black tracking-widest uppercase text-brand-dark/40">
+                        {p.category || "Product"} • {p.id}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-black text-orange-600">{p.countInStock} left</div>
+                      <div className="text-[10px] font-black tracking-widest uppercase text-brand-dark/40">{currency(p.price)}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-brand-dark/10 p-6">
+            <h2 className="font-serif text-xl font-bold text-brand-dark">Quick actions</h2>
+            <p className="text-xs text-brand-dark/50 font-medium">Operate faster</p>
+
+            <div className="mt-4 grid grid-cols-1 gap-3">
+              <a href="/admin/products" className="group p-4 rounded-xl border border-brand-dark/10 hover:border-brand-pink hover:bg-brand-pink/5 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-black text-brand-dark">Manage products</div>
+                    <div className="text-xs text-brand-dark/50">Create, edit, inventory</div>
+                  </div>
+                  <Package className="text-brand-dark/30 group-hover:text-brand-pink transition-colors" size={18} />
+                </div>
+              </a>
+
+              <a href="/admin/orders" className="group p-4 rounded-xl border border-brand-dark/10 hover:border-brand-pink hover:bg-brand-pink/5 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-black text-brand-dark">Process orders</div>
+                    <div className="text-xs text-brand-dark/50">Status + fulfillment</div>
+                  </div>
+                  <ShoppingCart className="text-brand-dark/30 group-hover:text-brand-pink transition-colors" size={18} />
+                </div>
+              </a>
+
+              <a href="/admin/returns" className="group p-4 rounded-xl border border-brand-dark/10 hover:border-brand-pink hover:bg-brand-pink/5 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-black text-brand-dark">Handle returns</div>
+                    <div className="text-xs text-brand-dark/50">Approve/reject, ops</div>
+                  </div>
+                  <Truck className="text-brand-dark/30 group-hover:text-brand-pink transition-colors" size={18} />
+                </div>
+              </a>
+
+              <a href="/admin/reviews" className="group p-4 rounded-xl border border-brand-dark/10 hover:border-brand-pink hover:bg-brand-pink/5 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-black text-brand-dark">Moderate reviews</div>
+                    <div className="text-xs text-brand-dark/50">Quality control</div>
+                  </div>
+                  <Star className="text-brand-dark/30 group-hover:text-brand-pink transition-colors" size={18} />
+                </div>
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </div>
