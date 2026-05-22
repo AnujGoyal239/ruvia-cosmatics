@@ -677,7 +677,7 @@ export default function Home() {
 
       {/* FINAL CTA - REFINED */}
       <section className="reveal-section py-5 md:py-10 bg-brand-dark text-brand-beige text-center relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-full opacity-30 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] pointer-events-none" />
+        <div className="absolute top-0 left-0 w-full h-full opacity-30 pointer-events-none" />
         <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-brand-pink/5 rounded-full blur-[120px] pointer-events-none" />
 
         <div className="container mx-auto px-6 md:px-12 relative z-10">

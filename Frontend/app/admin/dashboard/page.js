@@ -30,7 +30,7 @@ export default function AdminDashboardPage() {
       const productsData = await productsRes.json();
       
       // Fetch orders count
-      const ordersRes = await fetch(apiUrl("/api/orders/myorders"), { headers });
+      const ordersRes = await fetch(apiUrl("/api/orders/all"), { headers });
       const ordersData = await ordersRes.json();
 
       setStats({
