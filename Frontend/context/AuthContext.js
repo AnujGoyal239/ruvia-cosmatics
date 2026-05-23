@@ -15,6 +15,23 @@ export const AuthProvider = ({ children }) => {
   const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const safeReadJson = async (response) => {
+    const contentType = response.headers.get("content-type") || "";
+    try {
+      if (contentType.includes("application/json")) return await response.json();
+      const text = await response.text();
+      return { message: text };
+    } catch (e) {
+      // Some error responses are not JSON (e.g., proxies, rate limiters). Avoid crashing the app.
+      try {
+        const text = await response.text();
+        return { message: text };
+      } catch {
+        return { message: "Request failed" };
+      }
+    }
+  };
+
   const normalizeUser = (data) => data ? {
     ...data,
   } : null;
@@ -37,12 +54,15 @@ export const AuthProvider = ({ children }) => {
 
     // Not logged in is not an "exceptional" case during bootstrap
     if (response.status === 401) return null;
+    // Avoid crashing UI if rate-limited during development refresh cycles
+    if (response.status === 429) return null;
 
     if (!response.ok) {
-      throw new Error("Failed to load user profile");
+      const data = await safeReadJson(response);
+      throw new Error(data?.message || "Failed to load user profile");
     }
 
-    return response.json();
+    return safeReadJson(response);
   };
 
   useEffect(() => {
@@ -97,7 +117,7 @@ export const AuthProvider = ({ children }) => {
       }),
     });
 
-    const data = await response.json();
+    const data = await safeReadJson(response);
     if (!response.ok) {
       throw new Error(data.message || "Failed to save addresses");
     }
@@ -116,7 +136,7 @@ export const AuthProvider = ({ children }) => {
         credentials: "include",
         body: JSON.stringify({ email, password }),
       });
-      const data = await response.json();
+      const data = await safeReadJson(response);
       if (response.ok) {
         // Cookie is now set by backend; fetch the canonical profile
         const profile = await loadProfile();
@@ -152,7 +172,7 @@ export const AuthProvider = ({ children }) => {
         credentials: "include",
         body: JSON.stringify({ name, email, password }),
       });
-      const data = await response.json();
+      const data = await safeReadJson(response);
       if (response.ok) {
         const profile = await loadProfile();
         if (profile) {
@@ -203,7 +223,7 @@ export const AuthProvider = ({ children }) => {
       body: JSON.stringify({ address: addr }),
     });
 
-    const data = await response.json();
+    const data = await safeReadJson(response);
     if (!response.ok) {
       throw new Error(data.message || "Failed to add address");
     }
@@ -226,7 +246,7 @@ export const AuthProvider = ({ children }) => {
       credentials: "include",
     });
 
-    const data = await response.json();
+    const data = await safeReadJson(response);
     if (!response.ok) {
       throw new Error(data.message || "Failed to remove address");
     }
@@ -251,7 +271,7 @@ export const AuthProvider = ({ children }) => {
       }),
     });
 
-    const data = await response.json();
+    const data = await safeReadJson(response);
     if (!response.ok) {
       throw new Error(data.message || "Failed to update profile");
     }

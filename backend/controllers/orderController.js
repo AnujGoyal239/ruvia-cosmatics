@@ -1,5 +1,8 @@
 const Order = require('../models/orderModel');
 const Product = require('../models/productModel');
+const User = require('../models/userModel');
+const sendEmail = require('../utils/sendEmail');
+const { orderConfirmationEmail, orderStatusUpdateEmail } = require('../utils/emailTemplates');
 
 // @desc    Create new order
 // @route   POST /api/orders
@@ -109,6 +112,24 @@ const addOrderItems = async (req, res) => {
       );
     }
 
+    // Send order confirmation email (best-effort)
+    try {
+      const userDoc = await User.findById(req.user._id).select('name email');
+      if (userDoc?.email) {
+        const tpl = orderConfirmationEmail({ user: userDoc, order: createdOrder });
+        setImmediate(() => {
+          sendEmail({
+            email: userDoc.email,
+            subject: tpl.subject,
+            message: tpl.text,
+            html: tpl.html,
+          }).catch((err) => console.error('Order confirmation email failed', err));
+        });
+      }
+    } catch (e) {
+      console.error('Could not send order confirmation email', e);
+    }
+
     res.status(201).json(createdOrder);
   } catch (error) {
     console.error('Create order error:', error);
@@ -196,7 +217,7 @@ const getMyOrders = async (req, res) => {
 const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findById(req.params.id).populate('user', 'name email');
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
     const normalizeStatus = (value) => {
@@ -226,6 +247,25 @@ const updateOrderStatus = async (req, res) => {
       order.trackingEvents.push({ status: nextStatus, timestamp: new Date() });
     }
     await order.save();
+
+    // Send status update email (best-effort)
+    try {
+      const userDoc = order.user;
+      if (userDoc?.email && nextStatus !== prevStatus) {
+        const tpl = orderStatusUpdateEmail({ user: userDoc, order, status: nextStatus });
+        setImmediate(() => {
+          sendEmail({
+            email: userDoc.email,
+            subject: tpl.subject,
+            message: tpl.text,
+            html: tpl.html,
+          }).catch((err) => console.error('Order status email failed', err));
+        });
+      }
+    } catch (e) {
+      console.error('Could not send order status email', e);
+    }
+
     res.json(order);
   } catch (err) {
     console.error('updateOrderStatus error', err);

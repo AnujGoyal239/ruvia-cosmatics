@@ -58,7 +58,20 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Rate limiter
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200 }); // 200 requests per 15 minutes
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  // Next.js dev + React StrictMode can trigger extra requests (double-invoked effects).
+  // Keep production strict, but be more permissive in development to avoid blocking local testing.
+  max: process.env.NODE_ENV === 'production' ? 200 : 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res /*, next */) => {
+    // Always return JSON so the frontend can parse errors safely.
+    res.status(429).json({
+      message: 'Too many requests, please try again later.',
+    });
+  },
+});
 app.use(limiter);
 
 // Webhook endpoint: use raw body parser to verify signature exactly

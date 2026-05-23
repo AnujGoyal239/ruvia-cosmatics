@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useRef } from "react";
 import { apiUrl } from "../constants";
+import { useAuth } from "./AuthContext";
 
 const CartContext = createContext();
 
@@ -9,6 +10,7 @@ export function CartProvider({ children }) {
   const [cartItems, setCartItems] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const syncRef = useRef(null);
+  const { user, loading: authLoading } = useAuth();
 
   // Load from local storage initially
   useEffect(() => {
@@ -30,6 +32,8 @@ export function CartProvider({ children }) {
     if (syncRef.current) clearTimeout(syncRef.current);
     syncRef.current = setTimeout(() => {
       if (typeof window !== "undefined") {
+        // Avoid spamming 401s when the user is not authenticated
+        if (!user || authLoading) return;
         // Cookie-based auth (if user is logged in, cookie will be sent)
         fetch(apiUrl("/api/cart"), {
           method: "POST",
@@ -41,11 +45,12 @@ export function CartProvider({ children }) {
         }).catch((err) => console.error("Cart sync failed:", err));
       }
     }, 800);
-  }, [cartItems]);
+  }, [cartItems, user, authLoading]);
 
   // On login/load, try to fetch server cart and merge
   useEffect(() => {
     const trySyncFromServer = async () => {
+      if (!user || authLoading) return;
       try {
         const res = await fetch(apiUrl("/api/cart"), {
           method: "GET",
@@ -68,9 +73,7 @@ export function CartProvider({ children }) {
     };
 
     trySyncFromServer();
-    // run once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user, authLoading]);
 
   const toggleCart = () => setIsCartOpen((p) => !p);
   const openCart = () => setIsCartOpen(true);

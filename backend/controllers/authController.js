@@ -1,6 +1,7 @@
 const User = require('../models/userModel');
 const generateToken = require('../utils/generateToken');
 const sendEmail = require('../utils/sendEmail');
+const { welcomeEmail } = require('../utils/emailTemplates');
 
 const normalizeAddress = (address = {}) => ({
   firstName: address.firstName || '',
@@ -67,8 +68,9 @@ const registerUser = async (req, res) => {
       return res.status(400).json({ message: 'Name, email, and password are required' });
     }
 
-    if (password.length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    // Keep aligned with route validation rules (routes/authRoutes.js)
+    if (password.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
     }
 
     const userExists = await User.findOne({ email });
@@ -88,10 +90,15 @@ const registerUser = async (req, res) => {
       
       // Send Welcome Email asynchronously
       try {
-        await sendEmail({
-          email: user.email,
-          subject: 'Welcome to Ruvia Cosmetics!',
-          message: `Hi ${user.name},\n\nWelcome to Ruvia Cosmetics. We are thrilled to have you on board!`,
+        const tpl = welcomeEmail({ user });
+        // Fire-and-forget (registration shouldn't be blocked by email provider latency)
+        setImmediate(() => {
+          sendEmail({
+            email: user.email,
+            subject: tpl.subject,
+            message: tpl.text,
+            html: tpl.html,
+          }).catch((err) => console.error('Welcome email could not be sent', err));
         });
       } catch (err) {
         console.error('Email could not be sent', err);
