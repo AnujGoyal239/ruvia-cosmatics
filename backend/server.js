@@ -24,6 +24,8 @@ const reviewRoutes = require('./routes/reviewRoutes');
 const returnRoutes = require('./routes/returnRoutes');
 const wishlistRoutes = require('./routes/wishlistRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const { protect } = require('./middleware/authMiddleware');
+const { getOrderTracking } = require('./controllers/orderController');
 
 // Connect to database
 connectDB();
@@ -70,6 +72,8 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
+// Safety net: ensure tracking endpoint exists even if router isn't refreshed
+app.get('/api/orders/:id/tracking', protect, getOrderTracking);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/reviews', reviewRoutes);

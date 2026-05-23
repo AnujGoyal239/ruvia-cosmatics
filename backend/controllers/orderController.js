@@ -198,7 +198,26 @@ const updateOrderStatus = async (req, res) => {
     const { status } = req.body;
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    const nextStatus = status || order.status;
+
+    const normalizeStatus = (value) => {
+      const raw = String(value || '').trim();
+      const s = raw.toLowerCase();
+      if (!s) return null;
+      if (s === 'processing' || s === 'ordered' || s === 'order placed' || s === 'placed') return 'Processing';
+      if (s === 'shipped' || s === 'dispatch' || s === 'dispatched') return 'Shipped';
+      if (s === 'out for delivery' || s === 'out_for_delivery' || s === 'outfordelivery' || s === 'out for delivery pending') return 'Out for Delivery';
+      if (s === 'delivered' || s === 'completed') return 'Delivered';
+      // Accept exact enum casing too
+      if (['Processing', 'Shipped', 'Out for Delivery', 'Delivered'].includes(raw)) return raw;
+      return null;
+    };
+
+    const nextStatus = status ? normalizeStatus(status) : order.status;
+    if (!nextStatus) {
+      return res.status(400).json({
+        message: 'Invalid status. Allowed: Processing, Shipped, Out for Delivery, Delivered',
+      });
+    }
     const prevStatus = order.status;
     order.status = nextStatus;
     // Add a tracking event when status changes

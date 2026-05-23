@@ -5,6 +5,14 @@ const currency = (value) =>
   `₹${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
 const safe = (v) => (v === undefined || v === null ? "" : String(v));
+const numberFromAny = (v) => {
+  if (v === undefined || v === null) return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  // Handle strings like "₹1,299"
+  const s = String(v).replace(/[^\d.]/g, "");
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+};
 
 export function downloadInvoicePdf(order) {
   if (!order?._id) throw new Error("Order is missing");
@@ -67,11 +75,11 @@ export function downloadInvoicePdf(order) {
   // Items table
   const items = Array.isArray(order.items) ? order.items : [];
   const rows = items.map((it) => {
-    const qty = Number(it.qty || 1);
-    const unit = Number(it.price || 0);
+    const qty = numberFromAny(it.qty ?? it.quantity ?? 1) || 1;
+    const unit = numberFromAny(it.price);
     return [
       safe(it.name),
-      safe(it.product || ""),
+      safe(it.product || it.id || ""),
       String(qty),
       currency(unit),
       currency(qty * unit),
@@ -126,4 +134,3 @@ export function downloadInvoicePdf(order) {
 
   doc.save(`${invoiceNo}.pdf`);
 }
-

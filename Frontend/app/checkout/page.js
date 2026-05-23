@@ -53,7 +53,39 @@ export default function CheckoutPage() {
   }
 
   const validateAddress = () => {
-    if (selectedAddressId && !showNewAddressForm) return true;
+    // If user selected a saved address, validate that it's complete
+    if (selectedAddressId && !showNewAddressForm) {
+      const addr = addresses.find(a => a.id === selectedAddressId);
+      const nextErrors = {};
+      if (!addr) nextErrors.address = "Select a delivery address";
+      if (addr) {
+        if (!String(addr.firstName || "").trim()) nextErrors.firstName = "Required";
+        if (!String(addr.lastName || "").trim()) nextErrors.lastName = "Required";
+        if (!String(addr.phone || "").trim() || !/^\d{10}$/.test(String(addr.phone || "").trim())) nextErrors.phone = "Enter 10 digit number";
+        if (!String(addr.address || "").trim()) nextErrors.address = "Address is required";
+        if (!String(addr.city || "").trim()) nextErrors.city = "City is required";
+        if (!String(addr.pin || "").trim() || !/^\d{6}$/.test(String(addr.pin || "").trim())) nextErrors.pin = "Enter 6 digit PIN";
+      }
+      setErrors(nextErrors);
+      // If saved address is incomplete, force user to add/edit address
+      if (Object.keys(nextErrors).length > 0) {
+        toast.error("Please complete your delivery address before placing the order.");
+        setActiveStep(2);
+        setShowNewAddressForm(true);
+        setSelectedAddressId("");
+        // Pre-fill what we can
+        setFormData({
+          firstName: addr?.firstName || "",
+          lastName: addr?.lastName || "",
+          phone: addr?.phone || "",
+          address: addr?.address || "",
+          city: addr?.city || "",
+          pin: addr?.pin || "",
+        });
+        return false;
+      }
+      return true;
+    }
     
     let newErrors = {};
     if (!formData.firstName.trim()) newErrors.firstName = "Required";
@@ -84,6 +116,8 @@ export default function CheckoutPage() {
 
   const handlePayment = async (e) => {
     e.preventDefault();
+    // Always validate address before placing order
+    if (!validateAddress()) return;
     if (paymentMethod !== "cod" && !validatePayment()) return;
 
     if (!user) {
@@ -99,7 +133,7 @@ export default function CheckoutPage() {
       const orderPaymentMethod = paymentMethod === 'cod' ? 'COD' : (paymentMethod === 'upi' ? 'UPI' : 'Razorpay');
 
       const shippingAddress = selectedAddressId && !showNewAddressForm
-        ? addresses.find(a => a.id === selectedAddressId) || {}
+        ? (addresses.find(a => a.id === selectedAddressId) || {})
         : { firstName: formData.firstName, lastName: formData.lastName, phone: formData.phone, address: formData.address, city: formData.city, pin: formData.pin };
 
       const payload = {

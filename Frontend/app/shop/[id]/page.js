@@ -283,7 +283,7 @@ export default function ProductDetailPage() {
               <div className="space-y-6">
                 <input 
                   type="text" 
-                  defaultValue={userProfile.name}
+                  value={user?.name || "Customer"}
                   readOnly
                   className="w-full bg-brand-beige/10 border border-brand-dark/5 rounded-2xl px-6 py-4 outline-none text-sm font-bold text-brand-dark/40 cursor-not-allowed"
                 />
