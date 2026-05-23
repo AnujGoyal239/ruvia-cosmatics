@@ -8,6 +8,7 @@ import { useAuth } from "../../../context/AuthContext";
 import { useCart } from "../../../context/CartContext";
 import { apiUrl } from "../../../constants";
 import { Button } from "../../../components/ui/Button";
+import { downloadInvoicePdf } from "../../../lib/invoicePdf";
 
 export default function OrderDetailsPage() {
   const { user, loading } = useAuth();
@@ -56,7 +57,7 @@ export default function OrderDetailsPage() {
       id: item.product || item.id,
       name: item.name,
       price: Number(item.price || 0),
-      qty: item.qty || 1,
+      qty: item.qty ?? item.quantity ?? 1,
       img: item.img || "/images/serum.png",
     }));
 
@@ -107,6 +108,10 @@ export default function OrderDetailsPage() {
     ? `${view.shippingAddress.firstName} ${view.shippingAddress.lastName || ""}`.trim()
     : user.name;
 
+  const addressLine1 = view.shippingAddress.address || view.shippingAddress.street || "";
+  const addressCityState = [view.shippingAddress.city, view.shippingAddress.state].filter(Boolean).join(", ");
+  const addressPin = view.shippingAddress.pin || view.shippingAddress.zipCode || "";
+
   return (
     <div className="min-h-screen pt-32 pb-20 bg-[#FDFBF7] font-sans">
       <div className="container mx-auto px-4 md:px-12 max-w-6xl">
@@ -122,7 +127,16 @@ export default function OrderDetailsPage() {
               <span className="text-[#52C234] flex items-center gap-1"><ShieldCheck size={14} /> Paid via {view.paymentMethod}</span>
             </div>
           </div>
-          <button className="flex items-center gap-2 text-[10px] font-black tracking-widest uppercase text-brand-dark hover:text-brand-pink transition-colors bg-white px-6 py-3 rounded-md shadow-sm border border-brand-dark/10">
+          <button
+            onClick={() => {
+              try {
+                downloadInvoicePdf(order);
+              } catch (e) {
+                console.error("Invoice download failed:", e);
+              }
+            }}
+            className="flex items-center gap-2 text-[10px] font-black tracking-widest uppercase text-brand-dark hover:text-brand-pink transition-colors bg-white px-6 py-3 rounded-md shadow-sm border border-brand-dark/10"
+          >
             <Download size={14} /> Invoice
           </button>
         </div>
@@ -175,8 +189,19 @@ export default function OrderDetailsPage() {
               </div>
               <p className="text-sm font-bold text-brand-dark mb-2">{addressName}</p>
               <p className="text-xs text-brand-dark/60 font-medium leading-relaxed mb-5">
-                {view.shippingAddress.address || view.shippingAddress.street || "No address available"}<br />
-                {view.shippingAddress.city || ""}{view.shippingAddress.pin ? `, ${view.shippingAddress.pin}` : ""}
+                {addressLine1 || "No address available"}
+                {addressCityState ? (
+                  <>
+                    <br />
+                    {addressCityState}
+                  </>
+                ) : null}
+                {addressPin ? (
+                  <>
+                    <br />
+                    {addressPin}
+                  </>
+                ) : null}
               </p>
               <div className="space-y-1 bg-[#FDFBF7] p-3 rounded-md border border-brand-dark/5">
                 <p className="text-[10px] font-black tracking-widest uppercase text-brand-dark/50">Phone: <span className="text-brand-dark">{view.shippingAddress.phone || "N/A"}</span></p>

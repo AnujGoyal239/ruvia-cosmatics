@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";
 import { Button } from "../../components/ui/Button";
 import { apiUrl } from "../../constants";
+import { downloadInvoicePdf } from "../../lib/invoicePdf";
 
 export default function OrdersPage() {
   const { user, loading } = useAuth();
@@ -30,6 +31,71 @@ export default function OrdersPage() {
   const [trackingData, setTrackingData] = useState(null);
   const [trackingLoading, setTrackingLoading] = useState(false);
   const [trackingError, setTrackingError] = useState("");
+
+  const orderById = useMemo(() => {
+    const m = new Map();
+    for (const o of orders || []) {
+      if (o?._id) m.set(o._id, o);
+    }
+    return m;
+  }, [orders]);
+
+  const trackingTimeline = useMemo(() => {
+    const raw = Array.isArray(trackingData?.trackingEvents) ? trackingData.trackingEvents : [];
+    const events = raw
+      .map((e) => ({ ...e, pending: false }))
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    // Build a stable 4-step timeline that can show "pending" steps too.
+    const steps = [
+      { label: "Ordered", match: (s) => s.includes("order") },
+      { label: "Shipped", match: (s) => s.includes("ship") },
+      { label: "Out for Delivery", match: (s) => s.includes("out for") || s.includes("out") },
+      { label: "Delivered", match: (s) => s.includes("deliver") },
+    ];
+
+    const usedIdx = new Set();
+    const pick = (matchFn) => {
+      for (let i = 0; i < events.length; i++) {
+        if (usedIdx.has(i)) continue;
+        const s = String(events[i]?.status || "").toLowerCase();
+        if (matchFn(s)) {
+          usedIdx.add(i);
+          return events[i];
+        }
+      }
+      return null;
+    };
+
+    const normalized = steps.map((step) => {
+      const found = pick(step.match);
+      return found || { status: step.label, timestamp: null, pending: true };
+    });
+
+    // Append any extra custom events (admin added) after the main flow.
+    for (let i = 0; i < events.length; i++) {
+      if (!usedIdx.has(i)) normalized.push(events[i]);
+    }
+
+    return normalized;
+  }, [trackingData]);
+
+  const placedAtLabel = useMemo(() => {
+    const raw = Array.isArray(trackingData?.trackingEvents) ? trackingData.trackingEvents : [];
+    const ordered = raw.find((e) => String(e?.status || "").toLowerCase().includes("order"));
+    const ts = ordered?.timestamp ? new Date(ordered.timestamp) : null;
+    if (!ts) return "";
+    return ts.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  }, [trackingData]);
+
+  const trackingDescription = (statusText, pending) => {
+    const s = String(statusText || "").toLowerCase();
+    if (s.includes("deliver")) return pending ? "Arriving soon." : "Delivered successfully.";
+    if (s.includes("out for")) return pending ? "Will go out for delivery soon." : "Out for delivery. Arriving today.";
+    if (s.includes("ship")) return pending ? "Awaiting dispatch from warehouse." : "Shipped. Handed to delivery partner.";
+    if (s.includes("order")) return pending ? "Order will be confirmed soon." : "Order placed successfully.";
+    return pending ? "Pending update." : "Status updated.";
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -72,8 +138,27 @@ export default function OrdersPage() {
         const res = await fetch(apiUrl(`/api/orders/${trackingModalOrderId}/tracking`), {
           credentials: "include",
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.message || "Failed to fetch tracking");
+        const raw = await res.text();
+        let data = null;
+        try {
+          data = raw ? JSON.parse(raw) : null;
+        } catch (e) {
+          data = null;
+        }
+
+        if (!res.ok) {
+          const msg =
+            data?.message ||
+            (res.status === 404
+              ? "Tracking endpoint not found on backend. Restart the backend server."
+              : `Failed to fetch tracking (HTTP ${res.status})`);
+          throw new Error(msg);
+        }
+
+        if (!data || typeof data !== "object") {
+          throw new Error("Invalid tracking response from server");
+        }
+
         if (!cancelled) setTrackingData(data);
       } catch (e) {
         console.error("Tracking fetch failed:", e);
@@ -142,6 +227,20 @@ export default function OrdersPage() {
   const handleActionClick = (actionName) => {
     setActionToast(`Opening "${actionName}" portal...`);
     setTimeout(() => setActionToast(""), 3000);
+  };
+
+  const handleDownloadInvoice = (orderId) => {
+    try {
+      const rawOrder = orderById.get(orderId);
+      if (!rawOrder) throw new Error("Order data not available yet. Please try again.");
+      downloadInvoicePdf(rawOrder);
+      setActionToast("Invoice downloaded.");
+      setTimeout(() => setActionToast(""), 2500);
+    } catch (e) {
+      console.error("Invoice download failed:", e);
+      setActionToast(e?.message || "Failed to download invoice");
+      setTimeout(() => setActionToast(""), 3500);
+    }
   };
 
   const handleBuyAgain = (item) => {
@@ -237,6 +336,11 @@ export default function OrdersPage() {
             </button>
             <h3 className="font-serif text-3xl font-bold text-brand-dark mb-2">Track <span className="text-brand-pink italic">Package.</span></h3>
             <p className="text-[10px] font-black uppercase tracking-widest text-brand-dark/40 mb-8">Order #{trackingModalOrderId}</p>
+            {placedAtLabel ? (
+              <p className="text-[10px] font-black uppercase tracking-widest text-brand-dark/30 -mt-6 mb-8">
+                Order placed: {placedAtLabel}
+              </p>
+            ) : null}
 
             {trackingError ? (
               <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4 text-sm">
@@ -249,7 +353,7 @@ export default function OrdersPage() {
                 ) : (trackingData?.trackingEvents || []).length === 0 ? (
                   <div className="text-sm text-brand-dark/50">No tracking events yet.</div>
                 ) : (
-                  (trackingData?.trackingEvents || []).map((ev, idx) => {
+                  (trackingTimeline || []).map((ev, idx) => {
                     const statusText = ev?.status || "Update";
                     const lower = statusText.toLowerCase();
                     const Icon =
@@ -260,7 +364,7 @@ export default function OrdersPage() {
                       CheckCircle2;
                     const ts = ev?.timestamp ? new Date(ev.timestamp) : null;
                     const timeLabel = ts ? ts.toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
-                    const isLatest = idx === (trackingData.trackingEvents.length - 1);
+                    const isLatest = !ev?.pending && idx === (trackingTimeline.filter(e => !e?.pending).length - 1);
 
                     return (
                       <div key={`${statusText}-${idx}`} className={`relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group ${isLatest ? "is-active" : ""}`}>
@@ -271,11 +375,11 @@ export default function OrdersPage() {
                           <div className="flex items-center justify-between mb-1 gap-3">
                             <h4 className="font-bold text-brand-dark text-xs">{statusText}</h4>
                             <span className="text-[9px] font-black uppercase tracking-widest text-brand-dark/30 whitespace-nowrap">
-                              {timeLabel || "—"}
+                              {ev?.pending ? "PENDING" : (timeLabel || "—")}
                             </span>
                           </div>
                           <p className="text-[10px] text-brand-dark/50">
-                            {statusText === "Ordered" ? "Order successfully placed." : "Status updated."}
+                            {trackingDescription(statusText, !!ev?.pending)}
                           </p>
                         </div>
                       </div>
@@ -410,7 +514,7 @@ export default function OrdersPage() {
                     <div className="flex gap-3 text-xs">
                       <span onClick={() => handleViewItem(order.id)} className="text-brand-pink hover:text-brand-dark cursor-pointer transition-colors">View order details</span>
                       <span className="text-brand-dark/20">|</span>
-                      <span onClick={() => handleActionClick("Download Invoice")} className="text-brand-pink hover:text-brand-dark cursor-pointer transition-colors">Invoice</span>
+                      <span onClick={() => handleDownloadInvoice(order.id)} className="text-brand-pink hover:text-brand-dark cursor-pointer transition-colors">Invoice</span>
                     </div>
                   </div>
                 </div>

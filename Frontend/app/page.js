@@ -11,16 +11,55 @@ import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { Button } from "../components/ui/Button";
 import { AnimatedHeading } from "../components/ui/AnimatedHeading";
-import { steps } from "../constants";
+import { steps, apiUrl } from "../constants";
 
 export default function Home() {
   const { user } = useAuth();
   const { addToCart } = useCart();
   const router = useRouter();
+  const [catalog, setCatalog] = useState([]);
+
+  useEffect(() => {
+    const loadCatalog = async () => {
+      try {
+        const res = await fetch(apiUrl("/api/products"));
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data)) setCatalog(data);
+      } catch (e) {
+        // Silent: homepage should still work without backend
+      }
+    };
+    loadCatalog();
+  }, []);
+
+  const resolveCatalogProduct = (product) => {
+    if (!product) return null;
+    // Prefer id match
+    const byId = catalog.find((p) => String(p.id) === String(product.id));
+    if (byId) return byId;
+    // Fallback to name match for legacy hardcoded homepage products (p1, p2...)
+    const byName = catalog.find((p) => String(p.name || "").toLowerCase() === String(product.name || "").toLowerCase());
+    return byName || null;
+  };
 
   const handleAddToCart = (product, e) => {
     if (e) e.preventDefault();
-    addToCart(product);
+    const resolved = resolveCatalogProduct(product);
+    if (!resolved) {
+      // If backend catalog isn't available / doesn't contain this product,
+      // avoid adding an invalid id (causes /api/cart and /api/orders 400s).
+      router.push("/shop");
+      return;
+    }
+    addToCart({
+      id: resolved.id,
+      name: resolved.name,
+      price: resolved.price,
+      img: resolved.image,
+      image: resolved.image, // compatibility with checkout mapping (ci.image || ci.img)
+      quantity: 1,
+    });
   };
 
   const mainRef = useRef(null);
