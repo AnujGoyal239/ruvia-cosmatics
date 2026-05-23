@@ -37,8 +37,9 @@ export default function AuthPage() {
     
     if (!password) {
       errors.password = "Password is required";
-    } else if (password.length < 6) {
-      errors.password = "Password must be at least 6 characters";
+    } else if (password.length < 8) {
+      // Backend register validation enforces min 8, keep UI consistent
+      errors.password = "Password must be at least 8 characters";
     }
 
     if (!isLogin && !name.trim()) {
@@ -49,7 +50,7 @@ export default function AuthPage() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSuccess("");
@@ -58,15 +59,22 @@ export default function AuthPage() {
 
     try {
       if (isLogin) {
-        login(email, password);
+        const ok = await login(email, password);
+        if (!ok) {
+          setError("Invalid credentials. Please try again.");
+          return;
+        }
         setSuccess("Successfully logged in!");
       } else {
-        signup(name, email, password);
+        const ok = await signup(name, email, password);
+        if (!ok) {
+          setError("Signup failed. Please verify details and try again.");
+          return;
+        }
         setSuccess("Account created successfully!");
       }
-      setTimeout(() => {
-        router.push(redirectUrl);
-      }, 800);
+      // Redirect immediately after successful auth; the AuthContext will also redirect on user change
+      router.push(redirectUrl);
     } catch (err) {
       setError("Invalid credentials. Please try again.");
     }

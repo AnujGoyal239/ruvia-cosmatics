@@ -13,6 +13,22 @@ export const AdminProvider = ({ children }) => {
   const [admin, setAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const safeReadJson = async (response) => {
+    const contentType = response.headers.get("content-type") || "";
+    try {
+      if (contentType.includes("application/json")) return await response.json();
+      const text = await response.text();
+      return { message: text };
+    } catch {
+      try {
+        const text = await response.text();
+        return { message: text };
+      } catch {
+        return { message: "Request failed" };
+      }
+    }
+  };
+
   useEffect(() => {
     const bootstrapAdmin = async () => {
       try {
@@ -21,7 +37,7 @@ export const AdminProvider = ({ children }) => {
         });
 
         if (response.ok) {
-          const profile = await response.json();
+          const profile = await safeReadJson(response);
           if (profile.role === 'admin') {
             setAdmin(profile);
           } else {
@@ -50,7 +66,7 @@ export const AdminProvider = ({ children }) => {
         body: JSON.stringify({ email, password })
       });
 
-      const data = await response.json();
+      const data = await safeReadJson(response);
       
       if (response.ok) {
         if (data.role === 'admin') {
