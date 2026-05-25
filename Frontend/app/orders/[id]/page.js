@@ -128,9 +128,9 @@ export default function OrderDetailsPage() {
             </div>
           </div>
           <button
-            onClick={() => {
+            onClick={async () => {
               try {
-                downloadInvoicePdf(order);
+                await downloadInvoicePdf(order);
               } catch (e) {
                 console.error("Invoice download failed:", e);
               }

@@ -4,6 +4,7 @@ const { body } = require('express-validator');
 const { authUser, registerUser, getUserProfile, updateUserProfile, addAddress, removeAddress } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 const { runValidation } = require('../middleware/validateMiddleware');
+const { getTokenCookieOptions } = require('../utils/cookieOptions');
 
 // Login validation
 const loginValidation = [
@@ -29,7 +30,8 @@ const profileValidation = [
 router.post('/register', registerValidation, runValidation, registerUser);
 router.post('/login', loginValidation, runValidation, authUser);
 router.post('/logout', (req, res) => {
-  res.clearCookie('token');
+  // Clear cookie with the same attributes used for setting it (important for prod SameSite=None).
+  res.clearCookie('token', getTokenCookieOptions());
   res.json({ message: 'Logged out successfully' });
 });
 router.get('/me', protect, getUserProfile);

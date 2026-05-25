@@ -1,15 +1,27 @@
 const express = require('express');
 const router = express.Router();
 const { addOrderItems, getOrderById, updateOrderToPaid, getMyOrders, getAllOrders, updateOrderStatus, getOrderTracking, addOrderTrackingEvent } = require('../controllers/orderController');
+const { quoteOrder } = require('../controllers/quoteController');
 const { protect, admin } = require('../middleware/authMiddleware');
 const { check } = require('express-validator');
 const { runValidation } = require('../middleware/validateMiddleware');
+
+router.route('/quote').post(
+  protect,
+  [
+    check('items').isArray({ min: 1 }).withMessage('Items must be a non-empty array'),
+    check('promoCode').optional().isString().trim().isLength({ min: 2, max: 32 }).withMessage('Invalid promo code'),
+  ],
+  runValidation,
+  quoteOrder
+);
 
 router.route('/').post(
 	protect,
 	[
 		check('items').isArray({ min: 1 }).withMessage('Items must be a non-empty array'),
-		check('total').isNumeric().withMessage('Total must be a number'),
+		// Totals are computed server-side. Do not require client-provided totals.
+		check('promoCode').optional().isString().trim().isLength({ min: 2, max: 32 }).withMessage('Invalid promo code'),
 		check('paymentMethod')
 			.customSanitizer((value) => {
 				if (typeof value !== 'string') return value;

@@ -5,6 +5,7 @@ const orderSchema = mongoose.Schema({
   status: { type: String, enum: ['Processing', 'Shipped', 'Out for Delivery', 'Delivered'], default: 'Processing' },
   total: { type: Number, required: true },
   subtotal: { type: Number, required: true },
+  discount: { type: Number, required: true, default: 0 },
   gst: { type: Number, required: true },
   shippingFee: { type: Number, required: true },
   items: [{
@@ -29,6 +30,12 @@ const orderSchema = mongoose.Schema({
     zipCode: String,
   },
   paymentMethod: { type: String, enum: ['Razorpay', 'COD', 'UPI'], required: true },
+  promoCode: { type: String },
+  pricingBreakdown: {
+    // Optional diagnostic info for auditing pricing decisions
+    type: Object,
+    default: undefined,
+  },
   paymentResult: {
     id: String,
     status: String,

@@ -1,26 +1,24 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useRef } from "react";
+import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { apiUrl } from "../constants";
 import { useAuth } from "./AuthContext";
 
 const CartContext = createContext();
 
 export function CartProvider({ children }) {
-  const [cartItems, setCartItems] = useState([]);
+  const [cartItems, setCartItems] = useState(() => {
+    try {
+      const stored = localStorage.getItem("ruvia_cart");
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      console.error("Failed to load cart", e);
+      return [];
+    }
+  });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const syncRef = useRef(null);
   const { user, loading: authLoading } = useAuth();
-
-  // Load from local storage initially
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("ruvia_cart");
-      if (stored) setCartItems(JSON.parse(stored));
-    } catch (e) {
-      console.error("Failed to load cart", e);
-    }
-  }, []);
 
   // Save to local storage whenever cart changes and debounce server sync
   useEffect(() => {
@@ -59,13 +57,15 @@ export function CartProvider({ children }) {
         if (!res.ok) return;
         const data = await res.json();
         if (data && Array.isArray(data.items)) {
-          const merged = [...cartItems];
-          data.items.forEach((si) => {
-            const idx = merged.findIndex((li) => li.id === si.id);
-            if (idx === -1) merged.push(si);
-            else merged[idx] = { ...merged[idx], quantity: si.qty || si.quantity || merged[idx].quantity };
+          setCartItems((prev) => {
+            const merged = [...prev];
+            data.items.forEach((si) => {
+              const idx = merged.findIndex((li) => li.id === si.id);
+              if (idx === -1) merged.push(si);
+              else merged[idx] = { ...merged[idx], quantity: si.qty || si.quantity || merged[idx].quantity };
+            });
+            return merged;
           });
-          setCartItems(merged);
         }
       } catch (err) {
         console.error("Failed to load server cart", err);
@@ -75,11 +75,11 @@ export function CartProvider({ children }) {
     trySyncFromServer();
   }, [user, authLoading]);
 
-  const toggleCart = () => setIsCartOpen((p) => !p);
-  const openCart = () => setIsCartOpen(true);
-  const closeCart = () => setIsCartOpen(false);
+  const toggleCart = useCallback(() => setIsCartOpen((p) => !p), []);
+  const openCart = useCallback(() => setIsCartOpen(true), []);
+  const closeCart = useCallback(() => setIsCartOpen(false), []);
 
-  const addToCart = (product) => {
+  const addToCart = useCallback((product) => {
     const qty = product.quantity || 1;
     setCartItems((prev) => {
       const existing = prev.find((item) => item.id === product.id);
@@ -91,13 +91,13 @@ export function CartProvider({ children }) {
       return [...prev, { ...product, quantity: qty }];
     });
     openCart();
-  };
+  }, [openCart]);
 
-  const removeFromCart = (id) => {
+  const removeFromCart = useCallback((id) => {
     setCartItems((prev) => prev.filter((item) => item.id !== id));
-  };
+  }, []);
 
-  const updateQuantity = (id, delta) => {
+  const updateQuantity = useCallback((id, delta) => {
     setCartItems((prev) =>
       prev
         .map((item) => {
@@ -109,19 +109,22 @@ export function CartProvider({ children }) {
         })
         .filter(Boolean)
     );
-  };
+  }, []);
 
-  const getCartTotal = () => {
+  const getCartTotal = useCallback(() => {
     return cartItems.reduce((total, item) => {
       const priceVal =
         typeof item.price === "string" ? parseInt(item.price.replace(/[^\d]/g, ""), 10) || 0 : item.price;
       return total + priceVal * item.quantity;
     }, 0);
-  };
+  }, [cartItems]);
 
-  const getCartCount = () => cartItems.reduce((count, item) => count + item.quantity, 0);
+  const getCartCount = useCallback(
+    () => cartItems.reduce((count, item) => count + item.quantity, 0),
+    [cartItems]
+  );
 
-  const clearCart = () => {
+  const clearCart = useCallback(() => {
     setCartItems([]);
     fetch(apiUrl("/api/cart"), {
       method: "POST",
@@ -131,9 +134,9 @@ export function CartProvider({ children }) {
       credentials: "include",
       body: JSON.stringify({ items: [] }),
     }).catch(() => {});
-  };
+  }, []);
 
-  const value = {
+  const value = useMemo(() => ({
     cartItems,
     isCartOpen,
     toggleCart,
@@ -145,7 +148,19 @@ export function CartProvider({ children }) {
     getCartTotal,
     getCartCount,
     clearCart,
-  };
+  }), [
+    cartItems,
+    isCartOpen,
+    toggleCart,
+    openCart,
+    closeCart,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    getCartTotal,
+    getCartCount,
+    clearCart,
+  ]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

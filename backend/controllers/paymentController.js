@@ -23,8 +23,22 @@ try {
 // @access  Private
 const createRazorpayOrder = async (req, res) => {
   try {
-    const { amount, orderId } = req.body; // amount in INR, and our internal Order ID
-    if (!amount) return res.status(400).json({ message: 'Amount is required' });
+    const { orderId } = req.body; // our internal Order ID (required)
+    if (!razorpay) return res.status(503).json({ message: 'Payments are disabled (Razorpay not configured)' });
+    if (!orderId) return res.status(400).json({ message: 'orderId is required' });
+
+    const order = await Order.findById(orderId).populate('user', 'email name role');
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // Ownership / admin check: only order owner (or admin) can initiate payment for this order
+    if (String(order.user?._id) !== String(req.user._id) && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized to pay for this order' });
+    }
+
+    if (order.isPaid) return res.status(400).json({ message: 'Order is already paid' });
+
+    const amount = Number(order.total || 0);
+    if (!amount || amount <= 0) return res.status(400).json({ message: 'Invalid order amount' });
 
     const options = {
       amount: Math.round(amount * 100), // Razorpay expects amount in paise
@@ -36,13 +50,11 @@ const createRazorpayOrder = async (req, res) => {
     const rpOrder = await razorpay.orders.create(options);
     if (!rpOrder) return res.status(500).json({ message: 'Failed to create Razorpay order' });
 
-    // If an internal orderId was provided, save the razorpay order id on that order for reconciliation
-    if (orderId) {
-      try {
-        await Order.findByIdAndUpdate(orderId, { $set: { 'paymentResult.razorpay_order_id': rpOrder.id, 'razorpayOrderId': rpOrder.id } });
-      } catch (e) {
-        console.warn('Could not attach razorpay order id to Order', e.message);
-      }
+    // Save the razorpay order id on that order for reconciliation
+    try {
+      await Order.findByIdAndUpdate(orderId, { $set: { 'paymentResult.razorpay_order_id': rpOrder.id, 'razorpayOrderId': rpOrder.id } });
+    } catch (e) {
+      console.warn('Could not attach razorpay order id to Order', e.message);
     }
 
     // Return order and public key id for client

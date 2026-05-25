@@ -31,6 +31,14 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState("upi"); // upi, card, cod
   const [paymentData, setPaymentData] = useState({ upiId: "", cardNumber: "", expiry: "", cvv: "", cardName: "" });
 
+  // Coupon / promo state (server-authoritative pricing via /api/orders/quote)
+  const [couponOpen, setCouponOpen] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState(null); // { code, type, ... }
+  const [quote, setQuote] = useState(null); // { subtotal, discount, gst, shippingFee, total }
+  const [couponError, setCouponError] = useState("");
+  const [couponLoading, setCouponLoading] = useState(false);
+
   useEffect(() => {
     closeCart();
     if (!authLoading && !user) {
@@ -140,10 +148,8 @@ export default function CheckoutPage() {
         items,
         shippingAddress,
         paymentMethod: orderPaymentMethod,
-        itemsPrice: subtotal,
-        gst: Math.round(subtotal * 0.18),
-        shippingFee: 0,
-        total: finalTotal,
+        // Pricing is calculated server-side (subtotal, discount/promos, GST, shipping, total).
+        promoCode: appliedPromo?.code || undefined,
       };
 
       const res = await fetch(apiUrl("/api/orders"), {
@@ -177,7 +183,7 @@ export default function CheckoutPage() {
             'Content-Type': 'application/json',
           },
           credentials: "include",
-          body: JSON.stringify({ amount: finalTotal, orderId: data._id }),
+          body: JSON.stringify({ orderId: data._id }),
         });
         const rpData = await rpRes.json();
         if (!rpRes.ok) throw new Error(rpData.message || 'Razorpay order creation failed');
@@ -269,9 +275,63 @@ export default function CheckoutPage() {
     );
   }
 
-  const subtotal = getCartTotal();
-  const discount = Math.round(subtotal * 0.1);
-  const finalTotal = subtotal - discount;
+  // Client-side estimate (server will compute authoritative totals)
+  const localSubtotal = getCartTotal();
+  const subtotal = quote?.subtotal ?? localSubtotal;
+  const discount = quote?.discount ?? 0;
+  const gst = quote?.gst ?? Math.round(Math.max(0, subtotal - discount) * 0.18);
+  const shippingFee = quote?.shippingFee ?? (Math.max(0, subtotal - discount) > 500 ? 0 : 50);
+  const finalTotal = quote?.total ?? (Math.max(0, subtotal - discount) + gst + shippingFee);
+
+  const applyCoupon = async () => {
+    const code = String(couponCode || "").trim();
+    if (!code) {
+      setCouponError("Enter a coupon code");
+      return;
+    }
+    setCouponLoading(true);
+    setCouponError("");
+    try {
+      // 1) Validate promo (nice UX messaging)
+      const vRes = await fetch(apiUrl(`/api/promotions/validate/${encodeURIComponent(code)}`), {
+        credentials: "include",
+      });
+      const vData = await vRes.json().catch(() => ({}));
+      if (!vRes.ok) throw new Error(vData?.message || "Invalid coupon code");
+
+      // 2) Quote totals with promo (server-authoritative)
+      const quoteItems = cartItems.map((ci) => ({ id: ci.id, qty: ci.quantity }));
+      const qRes = await fetch(apiUrl("/api/orders/quote"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ items: quoteItems, promoCode: code }),
+      });
+      const qData = await qRes.json().catch(() => ({}));
+      if (!qRes.ok) throw new Error(qData?.message || "Failed to apply coupon");
+
+      setAppliedPromo({ code: vData.code || code, type: vData.type });
+      setQuote(qData);
+      setCouponOpen(false);
+      toast.success(`Coupon applied: ${String(vData.code || code).toUpperCase()}`);
+    } catch (err) {
+      console.error("Apply coupon failed:", err);
+      setAppliedPromo(null);
+      setQuote(null);
+      setCouponError(err?.message || "Failed to apply coupon");
+      toast.error(err?.message || "Failed to apply coupon");
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const clearCoupon = () => {
+    setAppliedPromo(null);
+    setQuote(null);
+    setCouponCode("");
+    setCouponError("");
+    toast("Coupon removed");
+  };
 
   const handleAddressSelect = (id) => {
     setSelectedAddressId(id);
@@ -612,13 +672,83 @@ export default function CheckoutPage() {
           <div className="w-full lg:w-95 xl:w-105 shrink-0 space-y-4">
             
             {/* Coupon Block */}
-            <div className="bg-white border border-brand-dark/10 rounded-lg p-5 shadow-sm flex items-center justify-between cursor-pointer hover:border-brand-pink transition-colors group">
+            <div
+              className="bg-white border border-brand-dark/10 rounded-lg p-5 shadow-sm flex items-center justify-between cursor-pointer hover:border-brand-pink transition-colors group"
+              onClick={() => setCouponOpen(true)}
+            >
               <div className="flex items-center gap-3">
                 <Tag size={20} className="text-brand-dark/40 group-hover:text-brand-pink transition-colors" />
-                <span className="text-sm font-bold text-brand-dark">Apply Coupon</span>
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-brand-dark">Apply Coupon</span>
+                  {appliedPromo?.code ? (
+                    <span className="text-[10px] font-black tracking-widest uppercase text-[#52C234] mt-1">
+                      Applied: {appliedPromo.code}
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <ChevronRight size={18} className="text-brand-dark/20 group-hover:text-brand-dark transition-colors" />
             </div>
+
+            {/* Coupon Modal */}
+            {couponOpen && (
+              <div className="fixed inset-0 z-[300] flex items-center justify-center p-6">
+                <div
+                  className="absolute inset-0 bg-brand-dark/60 backdrop-blur-md"
+                  onClick={() => setCouponOpen(false)}
+                />
+                <div className="relative bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl border border-brand-dark/10">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-serif text-2xl font-bold text-brand-dark">Apply Coupon</h3>
+                    <button
+                      onClick={() => setCouponOpen(false)}
+                      className="w-10 h-10 rounded-full border border-brand-dark/10 flex items-center justify-center text-brand-dark hover:bg-brand-pink hover:text-white transition-all"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-brand-dark/60 mb-4">
+                    Enter a coupon code. Discount is calculated on the server and will reflect at checkout.
+                  </p>
+
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      value={couponCode}
+                      onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponError(""); }}
+                      placeholder="e.g. SAVE10"
+                      className="flex-1 px-4 py-3 bg-[#FDFBF7] border border-brand-dark/10 rounded-md text-sm font-bold tracking-widest uppercase outline-none focus:border-brand-pink"
+                    />
+                    <Button
+                      variant="primary"
+                      className="rounded-md px-6"
+                      onClick={applyCoupon}
+                      disabled={couponLoading}
+                    >
+                      {couponLoading ? "Applying..." : "Apply"}
+                    </Button>
+                  </div>
+                  {couponError ? (
+                    <p className="mt-2 text-[10px] font-black tracking-widest uppercase text-red-500">{couponError}</p>
+                  ) : null}
+
+                  {appliedPromo?.code ? (
+                    <div className="mt-5 flex items-center justify-between bg-[#52C234]/10 border border-[#52C234]/20 rounded-md p-3">
+                      <div className="text-[10px] font-black tracking-widest uppercase text-[#52C234]">
+                        Current: {appliedPromo.code}
+                      </div>
+                      <button
+                        onClick={clearCoupon}
+                        className="text-[10px] font-black tracking-widest uppercase text-brand-dark hover:text-brand-pink"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )}
 
             {/* Order Summary Block */}
             <div className="bg-white border border-brand-dark/10 rounded-lg p-6 shadow-sm sticky top-24">
@@ -651,13 +781,21 @@ export default function CheckoutPage() {
                   <span>Sub Total</span>
                   <span>₹{subtotal.toLocaleString('en-IN')}</span>
                 </div>
-                <div className="flex justify-between text-xs font-bold text-[#52C234]">
-                  <span>Discount (10%)</span>
-                  <span>- ₹{discount.toLocaleString('en-IN')}</span>
+                {discount > 0 ? (
+                  <div className="flex justify-between text-xs font-bold text-[#52C234]">
+                    <span>Discount</span>
+                    <span>- ₹{discount.toLocaleString('en-IN')}</span>
+                  </div>
+                ) : null}
+                <div className="flex justify-between text-xs font-medium text-brand-dark/60">
+                  <span>GST (18%)</span>
+                  <span>₹{gst.toLocaleString('en-IN')}</span>
                 </div>
                 <div className="flex justify-between text-xs font-medium text-brand-dark/60">
                   <span>Shipping</span>
-                  <span className="text-[#52C234] font-bold tracking-widest uppercase">FREE</span>
+                  <span className={shippingFee === 0 ? "text-[#52C234] font-bold tracking-widest uppercase" : "text-brand-dark font-bold"}>
+                    {shippingFee === 0 ? "FREE" : `₹${shippingFee.toLocaleString('en-IN')}`}
+                  </span>
                 </div>
                 <div className="flex justify-between items-end pt-4 border-t border-brand-dark/10 mt-2">
                   <span className="font-bold text-sm text-brand-dark uppercase tracking-widest">To Pay</span>
@@ -665,9 +803,11 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              <div className="mt-6 p-4 bg-[#52C234]/10 rounded-md border border-[#52C234]/20 text-center">
-                <p className="text-xs font-bold tracking-widest uppercase text-[#52C234]">You will save ₹{discount.toLocaleString('en-IN')} on this order</p>
-              </div>
+              {discount > 0 ? (
+                <div className="mt-6 p-4 bg-[#52C234]/10 rounded-md border border-[#52C234]/20 text-center">
+                  <p className="text-xs font-bold tracking-widest uppercase text-[#52C234]">You will save ₹{discount.toLocaleString('en-IN')} on this order</p>
+                </div>
+              ) : null}
             </div>
 
           </div>

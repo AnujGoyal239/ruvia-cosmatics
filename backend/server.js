@@ -13,6 +13,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const { sanitizeRequest } = require('./middleware/sanitizeMiddleware');
+const { requestTimingMiddleware } = require('./middleware/requestTimingMiddleware');
 
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
@@ -24,6 +25,7 @@ const reviewRoutes = require('./routes/reviewRoutes');
 const returnRoutes = require('./routes/returnRoutes');
 const wishlistRoutes = require('./routes/wishlistRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const promotionRoutes = require('./routes/promotionRoutes');
 const { protect } = require('./middleware/authMiddleware');
 const { getOrderTracking } = require('./controllers/orderController');
 
@@ -34,6 +36,9 @@ const app = express();
 
 // Security middlewares
 app.use(helmet());
+
+// Dev/ops timing logs (disabled by default; enable with LOG_REQUESTS=true)
+app.use(requestTimingMiddleware({ slowMs: 500 }));
 
 // Parse cookies
 app.use(cookieParser());
@@ -93,6 +98,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/returns', returnRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/promotions', promotionRoutes);
 
 // Routes
 app.get('/', (req, res) => {

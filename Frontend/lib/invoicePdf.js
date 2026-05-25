@@ -1,6 +1,3 @@
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
-
 const currency = (value) =>
   `₹${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
@@ -14,9 +11,27 @@ const numberFromAny = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-export function downloadInvoicePdf(order) {
+const loadPdfLibs = async () => {
+  const [jspdfMod, autoTableMod] = await Promise.all([
+    import("jspdf"),
+    import("jspdf-autotable"),
+  ]);
+
+  // jsPDF v2 uses named export { jsPDF }, while some builds expose default export.
+  const jsPDF = jspdfMod?.jsPDF || jspdfMod?.default;
+  if (!jsPDF) throw new Error("PDF library (jsPDF) failed to load");
+
+  // jspdf-autotable typically exports default function; keep fallbacks for safety.
+  const autoTable = autoTableMod?.default || autoTableMod?.autoTable || autoTableMod;
+  if (!autoTable) throw new Error("PDF library (autoTable) failed to load");
+
+  return { jsPDF, autoTable };
+};
+
+export async function downloadInvoicePdf(order) {
   if (!order?._id) throw new Error("Order is missing");
 
+  const { jsPDF, autoTable } = await loadPdfLibs();
   const doc = new jsPDF({ unit: "pt", format: "a4" });
 
   const marginX = 40;

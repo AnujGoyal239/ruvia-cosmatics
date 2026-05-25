@@ -2,7 +2,10 @@ const Order = require('../models/orderModel');
 const Product = require('../models/productModel');
 const User = require('../models/userModel');
 const sendEmail = require('../utils/sendEmail');
-const { orderConfirmationEmail, orderStatusUpdateEmail } = require('../utils/emailTemplates');
+const { orderConfirmationEmail, orderStatusUpdateEmail, adminNewOrderEmail } = require('../utils/emailTemplates');
+const { getAdminNotificationRecipients } = require('../utils/adminNotifications');
+const { calculateOrderPricing } = require('../utils/pricingEngine');
+const Promotion = require('../models/promotionModel');
 
 // @desc    Create new order
 // @route   POST /api/orders
@@ -13,6 +16,7 @@ const addOrderItems = async (req, res) => {
       items,
       shippingAddress,
       paymentMethod,
+      promoCode,
     } = req.body;
 
     console.log('Order request body:', { items: items?.length, shippingAddress: !!shippingAddress, paymentMethod });
@@ -47,54 +51,32 @@ const addOrderItems = async (req, res) => {
       return res.status(400).json({ message: 'Invalid payment method' });
     }
 
-    // ✅ Verify items and calculate correct prices
-    let itemsPrice = 0;
-    const verifiedItems = [];
-    
-    for (const item of items) {
-      console.log('Looking for product with id:', item.id);
-      const product = await Product.findOne({ id: String(item.id) });
-      if (!product) {
-        console.error(`Product not found with id: ${item.id}`);
-        return res.status(400).json({ message: `Product ${item.id} not found` });
-      }
-
-      // Check stock
-      if (product.countInStock < item.qty) {
-        return res.status(400).json({ 
-          message: `Insufficient stock for ${product.name}. Available: ${product.countInStock}` 
-        });
-      }
-
-      const itemTotal = product.price * item.qty;
-      itemsPrice += itemTotal;
-
-      verifiedItems.push({
-        product: String(product.id),
-        name: product.name,
-        price: product.price,  // ✅ Use database price
-        qty: item.qty,
-        img: product.image
-      });
-    }
-
-    // ✅ Calculate totals on server
-    const gst = Math.round(itemsPrice * 0.18); // 18% GST
-    const shippingFee = itemsPrice > 500 ? 0 : 50; // Free shipping over ₹500
-    const total = itemsPrice + gst + shippingFee;
+    // ✅ Verify items and calculate pricing on server (includes promo logic)
+    const pricing = await calculateOrderPricing({ items, promoCode });
 
     // For COD, order is created but not marked as paid
     const isPaid = paymentMethod === 'COD' ? false : false;
 
     const order = new Order({
-      items: verifiedItems,
+      items: pricing.verifiedItems,
       user: req.user._id,
       shippingAddress: normalizedShippingAddress,
       paymentMethod,
-      subtotal: itemsPrice,  // ✅ Server-calculated
-      gst,  // ✅ Server-calculated
-      shippingFee,  // ✅ Server-calculated
-      total,  // ✅ Server-calculated
+      promoCode: pricing.promoMeta?.code || undefined,
+      subtotal: pricing.subtotal, // ✅ Server-calculated
+      discount: pricing.discount, // ✅ Server-calculated
+      gst: pricing.gst, // ✅ Server-calculated
+      shippingFee: pricing.shippingFee, // ✅ Server-calculated
+      total: pricing.total, // ✅ Server-calculated
+      pricingBreakdown: {
+        promo: pricing.promoMeta || null,
+        subtotal: pricing.subtotal,
+        discount: pricing.discount,
+        discountedSubtotal: pricing.discountedSubtotal,
+        gst: pricing.gst,
+        shippingFee: pricing.shippingFee,
+        total: pricing.total,
+      },
       isPaid,
       trackingEvents: [{ status: 'Ordered', timestamp: new Date() }],
     });
@@ -102,7 +84,7 @@ const addOrderItems = async (req, res) => {
     const createdOrder = await order.save();
 
     // ✅ Update stock
-    for (const item of verifiedItems) {
+    for (const item of pricing.verifiedItems) {
       // NOTE: `item.product` stores the product "public id" (slug), not Mongo _id.
       // So we must update by `id` field (unique + indexed) instead of findByIdAndUpdate.
       await Product.findOneAndUpdate(
@@ -110,6 +92,18 @@ const addOrderItems = async (req, res) => {
         { $inc: { countInStock: -item.qty } },
         { new: false }
       );
+    }
+
+    // ✅ Increment promotion usage count (best-effort)
+    try {
+      if (pricing.promo && pricing.promo._id) {
+        await Promotion.updateOne(
+          { _id: pricing.promo._id },
+          { $inc: { usedCount: 1 } }
+        );
+      }
+    } catch (e) {
+      console.warn('Could not increment promo usedCount', e.message);
     }
 
     // Send order confirmation email (best-effort)
@@ -128,6 +122,25 @@ const addOrderItems = async (req, res) => {
       }
     } catch (e) {
       console.error('Could not send order confirmation email', e);
+    }
+
+    // Notify admin(s) about new order (best-effort)
+    try {
+      const recipients = getAdminNotificationRecipients();
+      if (recipients.length > 0) {
+        const userDoc = await User.findById(req.user._id).select('name email');
+        const tpl = adminNewOrderEmail({ user: userDoc, order: createdOrder });
+        setImmediate(() => {
+          sendEmail({
+            email: recipients.join(','),
+            subject: tpl.subject,
+            message: tpl.text,
+            html: tpl.html,
+          }).catch((err) => console.error('Admin new order email failed', err));
+        });
+      }
+    } catch (e) {
+      console.error('Could not send admin new order email', e);
     }
 
     res.status(201).json(createdOrder);

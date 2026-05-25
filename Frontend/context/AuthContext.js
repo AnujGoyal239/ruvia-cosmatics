@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { apiUrl } from "../constants";
 
@@ -15,7 +15,7 @@ export const AuthProvider = ({ children }) => {
   const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const safeReadJson = async (response) => {
+  const safeReadJson = useCallback(async (response) => {
     const contentType = response.headers.get("content-type") || "";
     try {
       if (contentType.includes("application/json")) return await response.json();
@@ -30,13 +30,13 @@ export const AuthProvider = ({ children }) => {
         return { message: "Request failed" };
       }
     }
-  };
+  }, []);
 
   const normalizeUser = (data) => data ? {
     ...data,
   } : null;
 
-  const normalizeAddress = (address = {}) => ({
+  const normalizeAddress = useCallback((address = {}) => ({
     id: address._id || address.id || `${Date.now()}`,
     firstName: address.firstName || "",
     lastName: address.lastName || "",
@@ -44,9 +44,9 @@ export const AuthProvider = ({ children }) => {
     address: address.address || address.street || "",
     city: address.city || "",
     pin: address.pin || address.zipCode || "",
-  });
+  }), []);
 
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     // Cookie-based auth (httpOnly cookie set by backend on login/register)
     const response = await fetch(apiUrl("/api/auth/me"), {
       credentials: "include",
@@ -63,7 +63,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     return safeReadJson(response);
-  };
+  }, [safeReadJson]);
 
   useEffect(() => {
     const bootstrapAuth = async () => {
@@ -95,9 +95,9 @@ export const AuthProvider = ({ children }) => {
     };
 
     bootstrapAuth();
-  }, []);
+  }, [loadProfile, normalizeAddress]);
 
-  const saveAddresses = async (newAddresses) => {
+  const saveAddresses = useCallback(async (newAddresses) => {
     if (!user) {
       setAddresses(newAddresses);
       return;
@@ -126,9 +126,9 @@ export const AuthProvider = ({ children }) => {
     setAddresses(nextAddresses);
     setUser((current) => current ? { ...current, ...data } : current);
     return nextAddresses;
-  };
+  }, [user, safeReadJson, normalizeAddress]);
 
-  const login = async (email, password) => {
+  const login = useCallback(async (email, password) => {
     try {
       const response = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
@@ -162,9 +162,9 @@ export const AuthProvider = ({ children }) => {
       console.error(error);
       return false;
     }
-  };
+  }, [safeReadJson, loadProfile, normalizeAddress]);
 
-  const signup = async (name, email, password) => {
+  const signup = useCallback(async (name, email, password) => {
     try {
       const response = await fetch(apiUrl("/api/auth/register"), {
         method: "POST",
@@ -196,9 +196,9 @@ export const AuthProvider = ({ children }) => {
       console.error(error);
       return false;
     }
-  };
+  }, [safeReadJson, loadProfile, normalizeAddress]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
     } catch (error) {
@@ -211,9 +211,9 @@ export const AuthProvider = ({ children }) => {
     } catch {}
     setUser(null);
     setAddresses([]);
-  };
+  }, []);
 
-  const addAddress = async (addr) => {
+  const addAddress = useCallback(async (addr) => {
     const response = await fetch(apiUrl("/api/auth/address"), {
       method: "POST",
       headers: {
@@ -231,14 +231,14 @@ export const AuthProvider = ({ children }) => {
     const nextAddresses = (data || []).map(normalizeAddress);
     setAddresses(nextAddresses);
     return nextAddresses;
-  };
+  }, [safeReadJson, normalizeAddress]);
 
-  const updateAddress = async (id, updated) => {
+  const updateAddress = useCallback(async (id, updated) => {
     const nextAddresses = addresses.map(a => a.id === id ? { ...a, ...updated, id } : a);
     return saveAddresses(nextAddresses);
-  };
+  }, [addresses, saveAddresses]);
 
-  const deleteAddress = async (id) => {
+  const deleteAddress = useCallback(async (id) => {
     const response = await fetch(apiUrl(`/api/auth/address/${id}`), {
       method: "DELETE",
       headers: {
@@ -254,9 +254,9 @@ export const AuthProvider = ({ children }) => {
     const nextAddresses = (data || []).map(normalizeAddress);
     setAddresses(nextAddresses);
     return nextAddresses;
-  };
+  }, [safeReadJson, normalizeAddress]);
 
-  const updateUser = async (updatedFields) => {
+  const updateUser = useCallback(async (updatedFields) => {
     const response = await fetch(apiUrl("/api/auth/profile"), {
       method: "PUT",
       headers: {
@@ -282,9 +282,9 @@ export const AuthProvider = ({ children }) => {
       setAddresses((data.addresses || []).map(normalizeAddress));
     }
     return true;
-  };
+  }, [safeReadJson, user, addresses, normalizeAddress]);
 
-  const value = {
+  const value = useMemo(() => ({
     user,
     login,
     signup,
@@ -295,7 +295,18 @@ export const AuthProvider = ({ children }) => {
     addAddress,
     updateAddress,
     deleteAddress
-  };
+  }), [
+    user,
+    login,
+    signup,
+    logout,
+    updateUser,
+    loading,
+    addresses,
+    addAddress,
+    updateAddress,
+    deleteAddress,
+  ]);
 
   return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;
 };
