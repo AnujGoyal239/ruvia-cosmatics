@@ -54,6 +54,9 @@ const getProductById = async (req, res) => {
 // @access  Private/Admin
 const createProduct = async (req, res) => {
   try {
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      return res.status(503).json({ message: 'Image upload is disabled (Cloudinary not configured)' });
+    }
     let imageUrl = '';
     
     // Check if an image was uploaded via Multer
@@ -104,6 +107,9 @@ const createProduct = async (req, res) => {
 // @access  Private/Admin
 const updateProduct = async (req, res) => {
   try {
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      return res.status(503).json({ message: 'Image upload is disabled (Cloudinary not configured)' });
+    }
     const product = await Product.findById(req.params.id);
 
     if (!product) {

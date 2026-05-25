@@ -187,9 +187,106 @@ const orderStatusUpdateEmail = ({ user, order, status }) => {
   return { subject, text, html };
 };
 
+const adminNewOrderEmail = ({ user, order }) => {
+  const customerName = safe(user?.name || "Customer");
+  const customerEmail = safe(user?.email || "");
+  const orderId = safe(order?._id || "");
+  const orderNo = orderId ? `ORD-${orderId.slice(-6).toUpperCase()}` : "New order";
+  const placedAt = formatDateTime(order?.createdAt || Date.now());
+
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const rows = items
+    .map((it) => {
+      const qty = Number(it?.qty || 1);
+      const lineTotal = Number(it?.price || 0) * qty;
+      return `<tr><td>${safe(it?.name)}</td><td>${qty}</td><td>${currency(lineTotal)}</td></tr>`;
+    })
+    .join("");
+
+  const subtotal = Number(order?.subtotal ?? 0);
+  const discount = Number(order?.discount ?? 0);
+  const gst = Number(order?.gst ?? 0);
+  const shippingFee = Number(order?.shippingFee ?? 0);
+  const total = Number(order?.total ?? subtotal - discount + gst + shippingFee);
+
+  const subject = `New order received — ${orderNo}`;
+
+  const html = baseLayout({
+    title: "New Order",
+    preheader: `New order • ${orderNo}`,
+    bodyHtml: `
+      <h2 class="h2">New order received</h2>
+      <p class="muted"><strong>${orderNo}</strong> • Placed on ${safe(placedAt)}</p>
+      <p class="muted">Customer: <strong>${customerName}</strong>${customerEmail ? ` (${customerEmail})` : ""}</p>
+      <div class="divider"></div>
+      <table>
+        <thead><tr><th>Item</th><th>Qty</th><th>Total</th></tr></thead>
+        <tbody>${rows || ""}</tbody>
+      </table>
+      <div class="divider"></div>
+      <table>
+        <tbody>
+          <tr><td>Subtotal</td><td>${currency(subtotal)}</td></tr>
+          ${discount ? `<tr><td>Discount</td><td>- ${currency(discount)}</td></tr>` : ""}
+          <tr><td>GST</td><td>${currency(gst)}</td></tr>
+          <tr><td>Shipping</td><td>${shippingFee === 0 ? "FREE" : currency(shippingFee)}</td></tr>
+          <tr><td><strong>Total</strong></td><td><strong>${currency(total)}</strong></td></tr>
+        </tbody>
+      </table>
+      <div class="divider"></div>
+      <a class="btn" href="${safe(process.env.FRONTEND_URL || "http://localhost:3000")}/admin/orders">Open admin orders</a>
+    `,
+  });
+
+  const text =
+    `New order received\n` +
+    `${orderNo} • Placed on ${placedAt}\n` +
+    `Customer: ${customerName}${customerEmail ? ` (${customerEmail})` : ""}\n` +
+    `Total: ${currency(total)}\n` +
+    `Admin: ${safe(process.env.FRONTEND_URL || "http://localhost:3000")}/admin/orders`;
+
+  return { subject, text, html };
+};
+
+const adminReturnRequestEmail = ({ user, order, returnRequest }) => {
+  const customerName = safe(user?.name || "Customer");
+  const customerEmail = safe(user?.email || "");
+  const orderId = safe(order?._id || returnRequest?.order || "");
+  const orderNo = orderId ? `ORD-${String(orderId).slice(-6).toUpperCase()}` : "Return request";
+  const createdAt = formatDateTime(returnRequest?.createdAt || Date.now());
+  const reason = safe(returnRequest?.reason || "");
+
+  const subject = `Return request — ${orderNo}`;
+
+  const html = baseLayout({
+    title: "Return Request",
+    preheader: `Return request • ${orderNo}`,
+    bodyHtml: `
+      <h2 class="h2">Return request submitted</h2>
+      <p class="muted"><strong>${orderNo}</strong> • Submitted on ${safe(createdAt)}</p>
+      <p class="muted">Customer: <strong>${customerName}</strong>${customerEmail ? ` (${customerEmail})` : ""}</p>
+      <div class="divider"></div>
+      <p class="muted"><strong>Reason:</strong><br/>${reason || "—"}</p>
+      <div class="divider"></div>
+      <a class="btn" href="${safe(process.env.FRONTEND_URL || "http://localhost:3000")}/admin/returns">Open admin returns</a>
+    `,
+  });
+
+  const text =
+    `Return request submitted\n` +
+    `${orderNo} • Submitted on ${createdAt}\n` +
+    `Customer: ${customerName}${customerEmail ? ` (${customerEmail})` : ""}\n` +
+    `Reason: ${reason || "—"}\n` +
+    `Admin: ${safe(process.env.FRONTEND_URL || "http://localhost:3000")}/admin/returns`;
+
+  return { subject, text, html };
+};
+
 module.exports = {
   welcomeEmail,
   orderConfirmationEmail,
   orderStatusUpdateEmail,
+  adminNewOrderEmail,
+  adminReturnRequestEmail,
 };
 

@@ -24,7 +24,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className="scroll-smooth" suppressHydrationWarning>
+    <html lang="en" className="scroll-smooth" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body
         className={`${inter.variable} ${playfair.variable} antialiased font-sans bg-brand-beige text-brand-dark flex flex-col min-h-screen relative`}
         suppressHydrationWarning

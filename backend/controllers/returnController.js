@@ -1,5 +1,9 @@
 const ReturnRequest = require('../models/returnModel');
 const Order = require('../models/orderModel');
+const User = require('../models/userModel');
+const sendEmail = require('../utils/sendEmail');
+const { adminReturnRequestEmail } = require('../utils/emailTemplates');
+const { getAdminNotificationRecipients } = require('../utils/adminNotifications');
 
 // @desc    Create return request
 // @route   POST /api/returns
@@ -33,6 +37,25 @@ const createReturnRequest = async (req, res) => {
       user: req.user._id,
       reason
     });
+
+    // Notify admin(s) about return request (best-effort)
+    try {
+      const recipients = getAdminNotificationRecipients();
+      if (recipients.length > 0) {
+        const userDoc = await User.findById(req.user._id).select('name email');
+        const tpl = adminReturnRequestEmail({ user: userDoc, order, returnRequest });
+        setImmediate(() => {
+          sendEmail({
+            email: recipients.join(','),
+            subject: tpl.subject,
+            message: tpl.text,
+            html: tpl.html,
+          }).catch((err) => console.error('Admin return request email failed', err));
+        });
+      }
+    } catch (e) {
+      console.error('Could not send admin return request email', e);
+    }
 
     res.status(201).json(returnRequest);
   } catch (error) {

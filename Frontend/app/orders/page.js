@@ -229,11 +229,11 @@ export default function OrdersPage() {
     setTimeout(() => setActionToast(""), 3000);
   };
 
-  const handleDownloadInvoice = (orderId) => {
+  const handleDownloadInvoice = async (orderId) => {
     try {
       const rawOrder = orderById.get(orderId);
       if (!rawOrder) throw new Error("Order data not available yet. Please try again.");
-      downloadInvoicePdf(rawOrder);
+      await downloadInvoicePdf(rawOrder);
       setActionToast("Invoice downloaded.");
       setTimeout(() => setActionToast(""), 2500);
     } catch (e) {
@@ -254,12 +254,29 @@ export default function OrdersPage() {
     router.push("/checkout");
   };
 
-  const submitReturn = (e) => {
+  const submitReturn = async (e) => {
     e.preventDefault();
-    setReturnModalOrderId(null);
-    setReturnReason("");
-    setActionToast("Return request submitted successfully. Check your email for instructions.");
-    setTimeout(() => setActionToast(""), 5000);
+    const orderId = returnModalOrderId;
+    if (!orderId) return;
+    try {
+      const res = await fetch(apiUrl("/api/returns"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ orderId, reason: returnReason }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || "Failed to submit return request");
+
+      setReturnModalOrderId(null);
+      setReturnReason("");
+      setActionToast("Return request submitted. We'll email you next steps.");
+      setTimeout(() => setActionToast(""), 5000);
+    } catch (err) {
+      console.error("Return request failed:", err);
+      setActionToast(err?.message || "Failed to submit return request");
+      setTimeout(() => setActionToast(""), 5000);
+    }
   };
 
   const handleViewItem = (orderId) => {

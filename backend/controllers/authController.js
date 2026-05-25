@@ -2,6 +2,7 @@ const User = require('../models/userModel');
 const generateToken = require('../utils/generateToken');
 const sendEmail = require('../utils/sendEmail');
 const { welcomeEmail } = require('../utils/emailTemplates');
+const { getTokenCookieOptions } = require('../utils/cookieOptions');
 
 const normalizeAddress = (address = {}) => ({
   firstName: address.firstName || '',
@@ -34,12 +35,7 @@ const authUser = async (req, res) => {
       const token = generateToken(user._id);
       
       // Set HTTP-only cookie with JWT token
-      res.cookie('token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      });
+      res.cookie('token', token, getTokenCookieOptions());
       
       res.json({
         _id: user._id,
@@ -106,12 +102,7 @@ const registerUser = async (req, res) => {
       }
 
       // Set HTTP-only cookie with JWT token
-      res.cookie('token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      });
+      res.cookie('token', token, getTokenCookieOptions());
 
       res.status(201).json({
         _id: user._id,

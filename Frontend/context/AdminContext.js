@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { apiUrl } from "../constants";
 
 const AdminContext = createContext();
@@ -57,7 +57,7 @@ export const AdminProvider = ({ children }) => {
     bootstrapAdmin();
   }, []);
 
-  const adminLogin = async (email, password) => {
+  const adminLogin = useCallback(async (email, password) => {
     try {
       const response = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
@@ -83,22 +83,22 @@ export const AdminProvider = ({ children }) => {
       console.error(error);
       return { success: false, message: "Login failed" };
     }
-  };
+  }, []);
 
-  const adminLogout = () => {
+  const adminLogout = useCallback(() => {
     // Clear cookie on backend
     fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" }).catch(() => {});
     setAdmin(null);
     try { localStorage.removeItem("ruvia_admin"); } catch {}
-  };
+  }, []);
 
-  const value = {
+  const value = useMemo(() => ({
     admin,
     adminLogin,
     adminLogout,
     loading,
     isAuthenticated: !!admin
-  };
+  }), [admin, adminLogin, adminLogout, loading]);
 
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>;
 };
